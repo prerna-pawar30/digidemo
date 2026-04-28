@@ -94,6 +94,7 @@ export const createInvoiceFromOrder = async(req,res)=>{
     }
     const invoice = await createInvoiceService(value);
     // call here a order and stroge a iId value in order same as  OrderId in Invoice for tracking the order and invoice relation
+    console.log("value OrderId -------",value.orderId);
     const order = await Order.findOne({orderId: value.orderId});
     if(!order){
       return sendError(res, {
@@ -103,6 +104,8 @@ export const createInvoiceFromOrder = async(req,res)=>{
       });
     }
     await order.save();
+    console.log("order iId:", order.iId);
+      console.log("order found for invoice creation", order);
     return sendSuccess(res, invoice, 201, "Invoice created successfully");
   }catch(error){
     return handleError(res, error);
