@@ -23,7 +23,6 @@ import jwt from "jsonwebtoken";
 import { sendError, handleError } from "../helpers/error.helper.js";
 
 const authToken = async (req, res, next) => {
-  console.log("🔥 authToken middleware hit")  ;
   try {
     /* =========================
        CHECK AUTH HEADER
@@ -52,12 +51,9 @@ const authToken = async (req, res, next) => {
       if (err.name === "TokenExpiredError") {
         throw new Error("TOKEN_EXPIRED");
       }
-
-      
       if (err.name === "JsonWebTokenError") {
         throw new Error("INVALID_TOKEN");
       }
-
       throw err;
     }
 
@@ -73,7 +69,6 @@ const authToken = async (req, res, next) => {
     return handleError(res, error);
   }
 };
-
 export default authToken;
 
 

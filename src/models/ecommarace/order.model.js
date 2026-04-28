@@ -39,7 +39,7 @@ const orderItemSchema = new mongoose.Schema(
       required: true
     },
 
-    // ✅ Added for return tracking
+    // Added for return tracking
     returnedQuantity: {
       type: Number,
       default: 0,
@@ -64,10 +64,8 @@ const couponSchema = new mongoose.Schema(
       ref: "Coupon",
       default: null,
     },
-
     couponId: { type: String, default: null },
     code: { type: String, default: null },
-
     couponType:{
       type: String,
       enum: [
@@ -80,7 +78,6 @@ const couponSchema = new mongoose.Schema(
       ],
       default: null,
     },
-
     discountAmount: { type: Number, default: 0 },
     freeShipping: { type: Boolean, default: false },
   },
@@ -90,6 +87,7 @@ const couponSchema = new mongoose.Schema(
 /* ---------- ORDER ---------- */
 const orderSchema = new mongoose.Schema(
   {
+    iId:{ type: String, unique: true },
     orderId: {
       type: String,
       unique: true,

@@ -93,6 +93,17 @@ export const createInvoiceFromOrder = async(req,res)=>{
       });
     }
     const invoice = await createInvoiceService(value);
+    // call here a order and stroge a iId value in order same as  OrderId in Invoice for tracking the order and invoice relation
+    const order = await Order.findOne({orderId});
+    if(!order){
+      return sendError(res, {
+        message: "Order not found",
+        statusCode: 404,
+        errorCode: "ORDER_NOT_FOUND",
+      });
+    }
+    order.iId = invoice.OrderId;
+    await order.save();
     return sendSuccess(res, invoice, 201, "Invoice created successfully");
   }catch(error){
     return handleError(res, error);

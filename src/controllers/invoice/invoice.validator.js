@@ -10,6 +10,7 @@ const invoiceItemValidator = Joi.object({
   gstPercent: Joi.number().min(0).default(5),
 });
 export const createInvoiceValidator = Joi.object({
+  orderId: Joi.string().trim().optional(),
   invoiceDate: Joi.date().optional(),
   paymentTerms: Joi.string().trim().allow("").optional(),
   termsOfDelivery: Joi.string().trim().allow("").optional(),
