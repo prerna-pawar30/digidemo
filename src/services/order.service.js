@@ -719,42 +719,6 @@ export const getUserOrdersService = async (query, currentUser) => {
       .lean(),
     Order.countDocuments(filter),
   ]);
-
-  /* ---------- FORMAT ---------- */
-  const formattedOrders = orders.map((order) => ({
-    _id: order._id,
-    orderId: order.orderId,
-
-    totalItems: order.items?.length || 0,
-
-    items: (order.items || []).map((item) => ({
-      productId: item.productId,
-      variantId: item.variantId,
-      sku: item.sku || "",
-
-      productName: item.productName,
-      variantName: item.variantName,
-
-      price: item.price,
-      quantity: item.quantity,
-
-      attributes: item.attributes || {},
-      image: item.image,
-    })),
-
-    shippingCharge: order.shippingCharge || 0,
-    grandTotal: order.grandTotal,
-
-    coupon: order.coupon || null,
-
-    paymentMode: order.paymentMode,
-    paymentStatus: order.paymentStatus,
-    orderStatus: order.orderStatus,
-
-    createdAt: order.createdAt,
-    updatedAt: order.updatedAt,
-  }));
-
   /* ---------- PAGINATION RESPONSE ---------- */
   const pagination = getPagination({
     total,
@@ -768,7 +732,7 @@ export const getUserOrdersService = async (query, currentUser) => {
       month: month || null,
       year: year || null,
     },
-    orders: formattedOrders,
+    orders,
   };
 };
 
