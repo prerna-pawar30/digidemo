@@ -102,7 +102,6 @@ export const createInvoiceFromOrder = async(req,res)=>{
         errorCode: "ORDER_NOT_FOUND",
       });
     }
-    order.iId = invoice.OrderId;
     await order.save();
     return sendSuccess(res, invoice, 201, "Invoice created successfully");
   }catch(error){
