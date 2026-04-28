@@ -284,32 +284,51 @@ invoiceSchema.pre("save", function () {
   let totalDiscount = 0;
   let totalNet = 0;
   let totalTax = 0;
+
   for (const item of this.items) {
-    const gross = Number(item.qty || 0) * Number(item.price || 0);
+    const qty = Number(item.qty || 0);
+    const price = Number(item.price || 0);
+    const gstPercent = Number(item.gstPercent || 5);
+
+    // GST inclusive price
+    const total = qty * price;
+
+    const basePrice = total / (1 + gstPercent / 100);
+    const gstAmount = total - basePrice;
+
     const discountValue =
-      item.discountPercent > 0
-        ? (gross * Number(item.discountPercent || 0)) / 100
+      Number(item.discountPercent || 0) > 0
+        ? (basePrice * Number(item.discountPercent || 0)) / 100
         : Number(item.discountValue || 0);
-    const net = gross - discountValue;
-    const gstAmount = (net * Number(item.gstPercent || 0)) / 100;
-    const totalAmount = net + gstAmount;
-    item.discountValue = discountValue;
-    item.totalNet = net;
-    item.gstAmount = gstAmount;
-    item.totalAmount = totalAmount;
-    totalGrossValue += gross;
+
+    const net = basePrice - discountValue;
+
+    item.discountValue = Number(discountValue.toFixed(2));
+    item.totalNet = Number(net.toFixed(2));
+    item.gstAmount = Number(gstAmount.toFixed(2));
+    item.totalAmount = Number(total.toFixed(2));
+
+    totalGrossValue += basePrice;
     totalDiscount += discountValue;
     totalNet += net;
     totalTax += gstAmount;
   }
-  this.summary.totalGrossValue = totalGrossValue;
-  this.summary.totalDiscount = totalDiscount;
-  this.summary.totalNet = totalNet;
-  this.summary.totalTax = totalTax;
-  this.summary.totalPayAmount =
-    totalNet + Number(this.summary.freightCost || 0) + totalTax;
-  this.summary.amountToPay =
-    this.summary.totalPayAmount - Number(this.summary.paidAmount || 0);
+
+  const freightCost = Number(this.summary.freightCost || 0);
+  const paidAmount = Number(this.summary.paidAmount || 0);
+
+  this.summary.totalGrossValue = Number(totalGrossValue.toFixed(2));
+  this.summary.totalDiscount = Number(totalDiscount.toFixed(2));
+  this.summary.totalNet = Number(totalNet.toFixed(2));
+  this.summary.totalTax = Number(totalTax.toFixed(2));
+
+  this.summary.totalPayAmount = Number(
+    (totalNet + totalTax + freightCost).toFixed(2)
+  );
+
+  this.summary.amountToPay = Number(
+    (this.summary.totalPayAmount - paidAmount).toFixed(2)
+  );
 });
 const Invoice = model("Invoice", invoiceSchema);
 export default Invoice;
