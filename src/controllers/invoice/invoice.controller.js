@@ -12,7 +12,7 @@ import Employee from "../../models/manage/employee.model.js";
 import { PermissionAudit } from "../../models/manage/permissionaudit.model.js";
 import { v6 as uuidv6 } from "uuid";
 import User from "../../models/ecommarace/user.model.js";
-
+import Order from "../../models/ecommarace/order.model.js";
 /**
  * @function createInvoice
  *
