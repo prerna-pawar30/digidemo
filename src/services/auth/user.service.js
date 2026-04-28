@@ -143,7 +143,7 @@ export const getUserDashboardService = async (email) => {
     )
     .populate({
       path: "orderHistory.orderId",
-      select: "orderId orderStatus paymentStatus grandTotal items createdAt",
+      select: "orderId orderStatus paymentStatus grandTotal items createdAt iId",
     })
     .populate({
       path: "cart",
