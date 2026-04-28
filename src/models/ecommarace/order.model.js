@@ -87,6 +87,7 @@ const couponSchema = new mongoose.Schema(
 /* ---------- ORDER ---------- */
 const orderSchema = new mongoose.Schema(
   {
+    invoiceId: { type: String},
     iId:{ type: String, unique: true },
     orderId: {
       type: String,

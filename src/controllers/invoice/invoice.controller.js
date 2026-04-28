@@ -104,6 +104,7 @@ export const createInvoiceFromOrder = async(req,res)=>{
       });
     }
     order.iId = invoice.orderNumber;
+    order.invoiceId = invoice.invoiceId;  
     await order.save();
     console.log("order iId:", order.iId);
       console.log("order found for invoice creation", order);
