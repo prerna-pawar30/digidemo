@@ -23,14 +23,14 @@ router.post(
 );
 
 router.get(
-  "/manage/blogs",
+  "/manage/blogs/:permission",
   Auth,
   checkPermission,
   getBlogs
 );
 
 router.get(
-  "/manage/blogs/:blogId",
+  "/manage/blogs/:blogId/:permission",
   Auth,
   checkPermission,
   getBlogById
