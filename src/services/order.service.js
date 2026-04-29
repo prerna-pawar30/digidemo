@@ -691,10 +691,10 @@ export const getUserOrdersService = async (query, currentUser) => {
   if (!currentUser?._id) {
     throw new Error("Unauthorized user");
   }
-  /* ---------- PAGINATION ---------- */
-  const page = Math.max(parseInt(query.page) || 1, 1);
-  const limit = Math.max(parseInt(query.limit) || 10, 1);
-  const skip = (page - 1) * limit;
+  // /* ---------- PAGINATION ---------- */
+  // const page = Math.max(parseInt(query.page) || 1, 1);
+  // const limit = Math.max(parseInt(query.limit) || 10, 1);
+  // const skip = (page - 1) * limit;
   /* ---------- FILTER ---------- */
   const { month, year } = query;
   const filter = { user: currentUser._id };
@@ -714,20 +714,17 @@ export const getUserOrdersService = async (query, currentUser) => {
   const [orders, total] = await Promise.all([
     Order.find(filter)
       .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
       .lean(),
     Order.countDocuments(filter),
   ]);
-  /* ---------- PAGINATION RESPONSE ---------- */
-  const pagination = getPagination({
-    total,
-    page,
-    limit,
-  });
+  // /* ---------- PAGINATION RESPONSE ---------- */
+  // const pagination = getPagination({
+  //   total,
+  //   page,
+  //   limit,
+  // });
 
   return {
-    ...pagination,
     filters: {
       month: month || null,
       year: year || null,
