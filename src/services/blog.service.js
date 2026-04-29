@@ -1,11 +1,11 @@
 import Blog from "../models/blog/blog.modal.js";
-
+import slugify from "slugify";
+import { v6 as uuidv6 } from "uuid";
 export const createBlogService = async ({ data, employee }) => {
   const exists = await Blog.findOne({
     $or: [{ title: data.title }, { slug: data.slug }],
     isDeleted: false,
   });
-  console.log("🔥 createBlog hit service");
   if (exists) {
     const error = new Error("Blog already exists with same title or slug");
     error.statusCode = 409;
@@ -13,8 +13,16 @@ export const createBlogService = async ({ data, employee }) => {
     throw error;
   }
 
+    // 🔥 FORCE UNIQUE SLUG (ignore frontend slug)
+  const slug = `${slugify(data.title, {
+    lower: true,
+    strict: true,
+    trim: true,
+  })}-${uuidv6()}`;
+
   const blog = await Blog.create({
     ...data,
+     slug,
     createdBy: employee?._id || null,
   });
 

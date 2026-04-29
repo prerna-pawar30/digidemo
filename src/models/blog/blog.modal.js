@@ -1,7 +1,6 @@
 import mongoose from "mongoose";
 import { v6 as uuidv6 } from "uuid";
 import slugify from "slugify";
-
 const { Schema, model } = mongoose;
 
 const blogSchema = new Schema(
@@ -120,11 +119,9 @@ blogSchema.pre("validate", function () {
       strict: true,
     });
   }
-
   if (!this.metaTitle && this.title) {
     this.metaTitle = this.title;
   }
-
   if (!this.metaDescription && this.contentMarkdown) {
     const plainText = this.contentMarkdown
       .replace(/!\[[^\]]*\]\([^)]+\)/g, "")
@@ -133,18 +130,14 @@ blogSchema.pre("validate", function () {
       .replace(/\s+/g, " ")
       .trim()
       .slice(0, 160);
-
     this.metaDescription = plainText;
   }
-
   if (!this.keywords.length) {
     this.keywords = [...new Set([...this.tags, this.category].filter(Boolean))];
   }
-
   if (!this.canonicalUrl && this.slug) {
     this.canonicalUrl = `/blog/${this.slug}`;
   }
-
   if (this.status === "published" && !this.publishedAt) {
     this.publishedAt = new Date();
   }
