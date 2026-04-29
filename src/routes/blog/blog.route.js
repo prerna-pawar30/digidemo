@@ -52,5 +52,5 @@ router.delete(
 
 /* ---------- PUBLIC ROUTES ---------- */
 router.get("/blogs", getBlogs);
-router.get("/blogs/:slug", getBlogBySlug);
+router.get("/blogs/:blogId", getBlogById);
 export default router;
