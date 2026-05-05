@@ -1,6 +1,7 @@
 import Blog from "../models/blog/blog.modal.js";
 import slugify from "slugify";
 import { v6 as uuidv6 } from "uuid";
+import BlogView from "../models/blog/blogView.model.js";
 export const createBlogService = async ({ data, employee }) => {
   const exists = await Blog.findOne({
     $or: [{ title: data.title }, { slug: data.slug }],
@@ -165,5 +166,112 @@ export const deleteBlogService = async ({ blogId, employee }) => {
     blogId: blog.blogId,
     title: blog.title,
     deleted: true,
+  };
+};
+
+
+// ➤ ADD COMMENT
+export const addBlogCommentService = async ({ blogId, data }) => {
+  const blog = await Blog.findOne({ blogId: blogId, isDeleted: false });
+  if (!blog) {
+    throw {
+      message: "Blog not found",
+      statusCode: 404,
+    };
+  }
+ const comment = {
+  commentId: uuidv6(),   // ✅ added
+  name: data.name,
+  company: data.company,
+  city: data.city,
+  review: data.review,
+};
+
+blog.comments.push(comment);
+  await blog.save();
+  return {
+    blogId,
+    comment: blog.comments.at(-1),
+  };
+};
+
+
+// ➤ DELETE COMMENT
+export const deleteBlogCommentService = async ({
+  blogId,
+  commentId,
+  employee,
+  permission,
+}) => {
+  if (!employee.permissions?.includes(permission)) {
+    throw {
+      message: "Unauthorized",
+      statusCode: 403,
+    };
+  }
+
+  const result = await Blog.updateOne(
+    { blogId: blogId, "comments.commentId": commentId },
+    { $pull: { comments: { commentId } } }
+  );
+
+  if (result.modifiedCount === 0) {
+    throw {
+      message: "Comment not found",
+      statusCode: 404,
+    };
+  }
+
+  return { blogId, commentId };
+};
+
+
+
+// ➤ INCREASE VIEW (2 MIN RULE)
+export const increaseBlogViewService = async ({ blogId, req }) => {
+  const blog = await Blog.findOne({ blogId: blogId, isDeleted: false });
+
+  if (!blog) {
+    throw {
+      message: "Blog not found",
+      statusCode: 404,
+    };
+  }
+
+  const ip =
+    req.headers["x-forwarded-for"]?.split(",")[0] ||
+    req.socket.remoteAddress;
+
+  const userAgent = req.headers["user-agent"] || "";
+
+  const lastView = await BlogView.findOne({
+    blog: blog._id,
+    ipAddress: ip,
+    userAgent,
+  }).sort({ viewedAt: -1 });
+
+  const now = new Date();
+  const TWO_MIN = 2 * 60 * 1000;
+  let shouldCount = false;
+  if (!lastView) {
+    shouldCount = true;
+  } else {
+    const diff = now - lastView.viewedAt;
+    if (diff > TWO_MIN) shouldCount = true;
+  }
+
+  if (shouldCount) {
+    await BlogView.create({
+      blog: blog._id,
+      ipAddress: ip,
+      userAgent,
+      referrer: req.headers.referer || "",
+    });
+    await Blog.updateOne({ blogId: blogId }, { $inc: { views: 1 } });
+    blog.views += 1;
+  }
+  return {
+    blogId,
+    views: blog.views,
   };
 };
