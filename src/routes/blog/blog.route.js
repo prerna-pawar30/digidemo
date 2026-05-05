@@ -17,7 +17,7 @@ const router = express.Router();
 /* ---------- MANAGE ROUTES ---------- */
 
 router.delete(
-  "manage/delete/comment/:blogId/:commentId",
+  "/manage/comment/:blogId/:commentId",
   auth,
   checkPermission,
   deleteBlogComment
