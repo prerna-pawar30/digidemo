@@ -29,7 +29,11 @@ export const updateCouponService = async ({ couponId, data }) => {
   return coupon;
 };
 
-export const filterCouponsService = async ({ isActive , skip, limit }) => {
+export const filterCouponsService = async ({
+  isActive,
+  skip,
+  limit,
+}) => {
   let filter = {};
 
   if (isActive === "true") filter.isActive = true;
@@ -37,16 +41,34 @@ export const filterCouponsService = async ({ isActive , skip, limit }) => {
 
   const [coupons, total] = await Promise.all([
     Coupon.find(filter)
+      .populate("applicableCategories", "name categoryId")
+      .populate("applicableBrands", "brandName brandId")
+      .populate("buyXGetY.buyCategory", "name categoryId")
+      .populate("buyXGetY.getCategory", "name categoryId")
+      .populate("buyXGetY.buyBrand", "brandName brandId")
+      .populate("buyXGetY.getBrand", "brandName brandId")
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit),
-      Coupon.countDocuments(filter)
+
+    Coupon.countDocuments(filter),
   ]);
-  return { coupons, total, filter };
+
+  return {
+    coupons,
+    total,
+    filter,
+  };
 };
  
 export const getSingleCouponService = async ({ couponId }) => {
-  const coupon = await Coupon.findOne({ couponId });
+  const coupon = await Coupon.findOne({ couponId })
+      .populate("applicableCategories", "name categoryId")
+      .populate("applicableBrands", "brandName brandId")
+      .populate("buyXGetY.buyCategory", "name categoryId")
+      .populate("buyXGetY.getCategory", "name categoryId")
+      .populate("buyXGetY.buyBrand", "brandName brandId")
+      .populate("buyXGetY.getBrand", "brandName brandId");
   if (!coupon) {
     const error = new Error("Coupon not found");
     error.statusCode = 404;
