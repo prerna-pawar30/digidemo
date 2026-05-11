@@ -40,10 +40,6 @@ const authToken = async (req, res, next) => {
        EXTRACT TOKEN
     ========================= */
     const token = authHeader.split(" ")[1];
-
-    /* =========================
-       VERIFY TOKEN
-    ========================= */
     let decoded;
     try {
       decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
