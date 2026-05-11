@@ -1,7 +1,7 @@
 import Invoice from "../models/manage/invoice.model.js";
 
 export const generateInvoiceNumbers = async () => {
-  const year = new Date().getFullYear().toString();
+  const year = (new Date().getFullYear() + 1).toString();
 
   /* ---------- FIND LAST INVOICE OF CURRENT YEAR ---------- */
   const lastInvoice = await Invoice.findOne({
