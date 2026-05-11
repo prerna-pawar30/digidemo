@@ -208,7 +208,7 @@ export const getCartService = async ({ user }) => {
       productId: { $in: productIds },
       status: "active",
     })
-      .populate("brand", "name logoUrl")
+      .populate("brand", "BrandName logoUrl")
       .populate("category", "name")
       .lean();
 
@@ -250,8 +250,7 @@ export const getCartService = async ({ user }) => {
           brand: brand
             ? {
                 id: brand._id,
-                name: brand.name,
-                logo: brand.logoUrl || "",
+                name: brand.brandName,
               }
             : null,
 
