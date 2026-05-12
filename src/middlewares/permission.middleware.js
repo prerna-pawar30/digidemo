@@ -138,13 +138,11 @@ import { sendError, handleError } from "../helpers/error.helper.js";
  */
 
 export const checkPermission = async (req, res, next) => {
-  console.log("🔥 checkPermission middleware hit");
 
       /* =========================
          VALIDATE TOKEN USE
       ========================= */
       try{
-      console.log("Checking permissions for user:", req.user);
       const userEmail = req.user?.email;
 
       if (!userEmail) {
