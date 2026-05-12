@@ -12,8 +12,59 @@ const getDueDateFromTerms = (invoiceDate, paymentTerms) => {
   return date;
 };
 
+export const generateCustomerNo = async ({
+  customerNo,
+  contactPerson,
+}) => {
+
+  // CASE 1
+  // customerNo already sent from frontend
+
+  if (customerNo) {
+    return customerNo;
+  }
+
+  // CASE 2
+  // find existing customer by contactPerson
+
+  const existingCustomer = await Invoice.findOne({
+    isDeleted: false,
+
+    "billTo.contactPerson": {
+      $regex: new RegExp(
+        `^${contactPerson.trim()}$`,
+        "i"
+      ),
+    },
+  }).sort({ createdAt: 1 });
+
+  // Existing customer found
+
+  if (existingCustomer) {
+    return existingCustomer.customerNo;
+  }
+
+  // CASE 3
+  // generate next customer number
+
+  const lastCustomer = await Invoice.findOne({})
+    .sort({ customerNo: -1 })
+    .select("customerNo");
+
+  return lastCustomer
+    ? lastCustomer.customerNo + 1 : 1; 
+};
+
 export const createInvoiceService = async (data) => {
   const numbers = await generateInvoiceNumbers();
+
+    // CUSTOMER NUMBER LOGIC
+  const customerNo = await generateCustomerNo({
+    customerNo: data.customerNo,
+
+    contactPerson:
+      data.billTo?.contactPerson || "",
+  });
 
   const invoiceDate = data.invoiceDate ? new Date(data.invoiceDate) : new Date();
   const paymentTerms = data.paymentTerms || "Payable due amount in 10 days";
@@ -30,7 +81,7 @@ export const createInvoiceService = async (data) => {
 
   const invoice = await Invoice.create({
     invoiceNumber: numbers.invoiceNumber,
-    customerNo: numbers.customerNo,
+    customerNo,
     orderNumber: numbers.orderNumber,
     invoiceDate,
     dueDate: data.dueDate || getDueDateFromTerms(invoiceDate, paymentTerms),

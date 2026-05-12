@@ -63,7 +63,6 @@ export const generateInvoiceNumbers = async () => {
 
   return {
     invoiceNumber: `#${year}${seq}`,
-    customerNo: `${year}01${seq}`,
     orderNumber: `${year}11${seq}`,
   };
 };

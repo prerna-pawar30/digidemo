@@ -1,5 +1,5 @@
 import express from "express";
-import { createInvoice, getInvoiceById, getInvoices, updateInvoice,deleteInvoice, createInvoiceFromOrder, getInvoiceByIdForUser, deleteInvoiceByUser, updateInvoiceByUser } from "../../controllers/invoice/invoice.controller.js";
+import { createInvoice, getInvoiceById, getInvoices, updateInvoice,deleteInvoice, createInvoiceFromOrder, getInvoiceByIdForUser, deleteInvoiceByUser, updateInvoiceByUser, getInvoiceCustomers } from "../../controllers/invoice/invoice.controller.js";
 import auth from "../../middlewares/auth.middleware.js";
 import { checkPermission } from "../../middlewares/permission.middleware.js";
 const router = express.Router();
@@ -22,4 +22,12 @@ router.post("/create", auth, createInvoiceFromOrder);
    router.get("/get/:invoiceId", auth, getInvoiceByIdForUser);
    router.delete("/delete/:invoiceId", auth, deleteInvoiceByUser); // Allow users to delete their own invoices
    router.put("/update/:invoiceId", auth, updateInvoiceByUser); // Allow users to update their own invoices
+
+   router.get(
+  "/customers",
+  auth,
+  getInvoiceCustomers
+);
+   
+
 export default router;

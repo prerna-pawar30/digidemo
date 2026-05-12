@@ -13,6 +13,7 @@ import { PermissionAudit } from "../../models/manage/permissionaudit.model.js";
 import { v6 as uuidv6 } from "uuid";
 import User from "../../models/ecommarace/user.model.js";
 import Order from "../../models/ecommarace/order.model.js";
+import Invoice from "../../models/manage/invoice.model.js";
 /**
  * @function createInvoice
  *
@@ -312,5 +313,82 @@ export const getInvoices = async (req, res) => {
     return sendSuccess(res, result, 200, "Invoices fetched successfully");
   } catch (error) {
     return handleError(res, error);
+  }
+};
+
+
+
+export const getInvoiceCustomers = async (req, res) => {
+  try {
+
+    const customers = await Invoice.aggregate([
+      {
+        $match: {
+          isDeleted: false,
+        },
+      },
+
+      // old customer first
+      {
+        $sort: {
+          createdAt: 1,
+        },
+      },
+
+      // unique customerNo
+      {
+        $group: {
+          _id: "$customerNo",
+
+          customerNo: {
+            $first: "$customerNo",
+          },
+
+          contactPerson: {
+            $first: "$billTo.contactPerson",
+          },
+
+          companyName: {
+            $first: "$billTo.companyName",
+          },
+
+          contactNumber: {
+            $first: "$billTo.contactNumber",
+          },
+        },
+      },
+
+      {
+        $project: {
+          _id: 0,
+          customerNo: 1,
+          contactPerson: 1,
+          companyName: 1,
+          contactNumber: 1,
+        },
+      },
+
+      {
+        $sort: {
+          customerNo: 1,
+        },
+      },
+    ]);
+
+    return sendSuccess(
+      res,
+      customers,
+      200,
+      "Customers fetched successfully"
+    );
+
+  } catch (error) {
+
+    return sendError(res, {
+      message: error.message || "Failed to fetch customers",
+      statusCode: 500,
+      errorCode: "FETCH_CUSTOMERS_ERROR",
+    });
+
   }
 };

@@ -81,11 +81,10 @@ const invoiceSchema = new Schema(
       trim: true,
     },
 
-    customerNo: {
-      type: String,
-      trim: true,
-      default: "",
-    },
+customerNo: {
+  type: Number,
+  required: true,
+},
 
     invoiceDate: {
       type: Date,
@@ -188,12 +187,11 @@ const invoiceSchema = new Schema(
         default: "",
       },
       contactNumber: {
-        type: String,
+        type: String, 
         trim: true,
         default: "",
       },
     },
-
     bankDetails: {
       accountNo: {
         type: String,
