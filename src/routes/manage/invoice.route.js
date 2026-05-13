@@ -9,6 +9,7 @@ const router = express.Router();
 router.post("/manage/create", auth,
   checkPermission,
    createInvoice);
+   
 router.put("/manage/update/:invoiceId", auth,
   checkPermission,
    updateInvoice);
