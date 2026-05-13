@@ -11,7 +11,10 @@ const invoiceItemValidator = Joi.object({
 });
 export const createInvoiceValidator = Joi.object({
   orderId: Joi.string().trim().optional(),
+<<<<<<< HEAD
   customerNo: Joi.number().optional(),
+=======
+>>>>>>> b17a9100d3b45c984a0a3837d8ee403056c39ac0
   invoiceDate: Joi.date().optional(),
   paymentTerms: Joi.string().trim().allow("").optional(),
   termsOfDelivery: Joi.string().trim().allow("").optional(),

@@ -13,7 +13,10 @@ import { PermissionAudit } from "../../models/manage/permissionaudit.model.js";
 import { v6 as uuidv6 } from "uuid";
 import User from "../../models/ecommarace/user.model.js";
 import Order from "../../models/ecommarace/order.model.js";
+<<<<<<< HEAD
 import Invoice from "../../models/manage/invoice.model.js";
+=======
+>>>>>>> b17a9100d3b45c984a0a3837d8ee403056c39ac0
 /**
  * @function createInvoice
  *
@@ -314,6 +317,7 @@ export const getInvoices = async (req, res) => {
   } catch (error) {
     return handleError(res, error);
   }
+<<<<<<< HEAD
 };
 
 
@@ -391,4 +395,6 @@ export const getInvoiceCustomers = async (req, res) => {
     });
 
   }
+=======
+>>>>>>> b17a9100d3b45c984a0a3837d8ee403056c39ac0
 };

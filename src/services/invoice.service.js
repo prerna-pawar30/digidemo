@@ -12,6 +12,7 @@ const getDueDateFromTerms = (invoiceDate, paymentTerms) => {
   return date;
 };
 
+<<<<<<< HEAD
 export const generateCustomerNo = async ({
   customerNo,
   contactPerson,
@@ -66,6 +67,11 @@ export const createInvoiceService = async (data) => {
       data.billTo?.contactPerson || "",
   });
 
+=======
+export const createInvoiceService = async (data) => {
+  const numbers = await generateInvoiceNumbers();
+
+>>>>>>> b17a9100d3b45c984a0a3837d8ee403056c39ac0
   const invoiceDate = data.invoiceDate ? new Date(data.invoiceDate) : new Date();
   const paymentTerms = data.paymentTerms || "Payable due amount in 10 days";
 
@@ -81,7 +87,11 @@ export const createInvoiceService = async (data) => {
 
   const invoice = await Invoice.create({
     invoiceNumber: numbers.invoiceNumber,
+<<<<<<< HEAD
     customerNo,
+=======
+    customerNo: numbers.customerNo,
+>>>>>>> b17a9100d3b45c984a0a3837d8ee403056c39ac0
     orderNumber: numbers.orderNumber,
     invoiceDate,
     dueDate: data.dueDate || getDueDateFromTerms(invoiceDate, paymentTerms),

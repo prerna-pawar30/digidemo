@@ -81,10 +81,18 @@ const invoiceSchema = new Schema(
       trim: true,
     },
 
+<<<<<<< HEAD
 customerNo: {
   type: Number,
   required: true,
 },
+=======
+    customerNo: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+>>>>>>> b17a9100d3b45c984a0a3837d8ee403056c39ac0
 
     invoiceDate: {
       type: Date,
@@ -187,11 +195,19 @@ customerNo: {
         default: "",
       },
       contactNumber: {
+<<<<<<< HEAD
         type: String, 
+=======
+        type: String,
+>>>>>>> b17a9100d3b45c984a0a3837d8ee403056c39ac0
         trim: true,
         default: "",
       },
     },
+<<<<<<< HEAD
+=======
+
+>>>>>>> b17a9100d3b45c984a0a3837d8ee403056c39ac0
     bankDetails: {
       accountNo: {
         type: String,
