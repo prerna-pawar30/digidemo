@@ -1,7 +1,6 @@
 import Invoice from "../models/manage/invoice.model.js";
 
 export const generateInvoiceNumbers = async () => {
-<<<<<<< HEAD
   const currentDate = new Date();
 
   const currentMonth = currentDate.getMonth() + 1; // Jan = 1
@@ -46,22 +45,11 @@ export const generateInvoiceNumbers = async () => {
   })
     .sort({ createdAt: -1 })
     .select("invoiceNumber")
-=======
-  const year = new Date().getFullYear().toString();
-
-  /* ---------- FIND LAST INVOICE OF CURRENT YEAR ---------- */
-  const lastInvoice = await Invoice.findOne({
-    invoiceNumber: { $regex: `^#${year}` },
-  })
-    .sort({ createdAt: -1 })
-    .select("invoiceNumber")  
->>>>>>> b17a9100d3b45c984a0a3837d8ee403056c39ac0
     .lean();
 
   let sequence = 1;
 
   if (lastInvoice?.invoiceNumber) {
-<<<<<<< HEAD
     const lastSeq = parseInt(
       lastInvoice.invoiceNumber.replace(`#${year}`, "")
     );
@@ -71,21 +59,10 @@ export const generateInvoiceNumbers = async () => {
 
   /* ---------- PAD TO 2 DIGITS ---------- */
 
-=======
-    const lastSeq = parseInt(lastInvoice.invoiceNumber.replace(`#${year}`, ""));
-    sequence = lastSeq + 1;
-  }
-
-  /* ---------- PAD ONLY TO 2 DIGITS ---------- */
->>>>>>> b17a9100d3b45c984a0a3837d8ee403056c39ac0
   const seq = String(sequence).padStart(2, "0");
 
   return {
     invoiceNumber: `#${year}${seq}`,
-<<<<<<< HEAD
-=======
-    customerNo: `${year}01${seq}`,
->>>>>>> b17a9100d3b45c984a0a3837d8ee403056c39ac0
     orderNumber: `${year}11${seq}`,
   };
 };

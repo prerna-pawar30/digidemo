@@ -13,10 +13,7 @@ import { PermissionAudit } from "../../models/manage/permissionaudit.model.js";
 import { v6 as uuidv6 } from "uuid";
 import User from "../../models/ecommarace/user.model.js";
 import Order from "../../models/ecommarace/order.model.js";
-<<<<<<< HEAD
 import Invoice from "../../models/manage/invoice.model.js";
-=======
->>>>>>> b17a9100d3b45c984a0a3837d8ee403056c39ac0
 /**
  * @function createInvoice
  *
@@ -317,7 +314,6 @@ export const getInvoices = async (req, res) => {
   } catch (error) {
     return handleError(res, error);
   }
-<<<<<<< HEAD
 };
 
 
@@ -395,6 +391,70 @@ export const getInvoiceCustomers = async (req, res) => {
     });
 
   }
-=======
->>>>>>> b17a9100d3b45c984a0a3837d8ee403056c39ac0
+};
+
+
+
+
+/**
+ * @function deleteAllInvoices
+ *
+ * @description
+ * Permanently delete all invoices from database.
+ */
+export const deleteAllInvoices = async (req, res) => {
+  try {
+
+
+    // Permanently delete all invoices
+    const deleted = await Invoice.deleteMany({});
+
+    return sendSuccess(
+      res,
+      {
+        deletedCount: deleted.deletedCount,
+      },
+      200,
+      "All invoices deleted permanently"
+    );
+
+  } catch (error) {
+    return handleError(res, error);
+  }
+};
+
+
+export const getInvoicesByCustomerId = async (req, res) => {
+  try {
+    const { customerNo } = req.params;
+    if (!customerNo) {
+      return sendError(res, {
+        message: "Customer number is required",
+        statusCode: 400,
+        errorCode: "CUSTOMER_NO_REQUIRED",
+      });
+    }
+    const invoices = await Invoice.find({
+      customerNo,
+      isDeleted: false,
+    }).sort({ createdAt: -1 });
+
+    if (!invoices.length) {
+      return sendError(res, {
+        message: "No invoices found for this customer",
+        statusCode: 404,
+        errorCode: "INVOICES_NOT_FOUND",
+      });
+    }
+
+    return sendSuccess(
+      res,
+      invoices,
+      200,
+      "Customer invoices fetched successfully"
+    );
+
+  } catch (error) {
+    return handleError(res, error);
+  }
 };
