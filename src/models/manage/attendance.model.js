@@ -66,7 +66,6 @@ const employeeRecordSchema = new mongoose.Schema(
       unique: true,
       required: true,
     },
-
     records: {
       type: [dayRecordSchema],
       default: [],
@@ -120,7 +119,6 @@ const getUpcomingSundays = (year, startDate) => {
     sundays.push(date.toISOString().split("T")[0]);
     date.setDate(date.getDate() + 7);
   }
-
   return sundays;
 };
 

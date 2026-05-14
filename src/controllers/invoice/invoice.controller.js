@@ -14,6 +14,7 @@ import { v6 as uuidv6 } from "uuid";
 import User from "../../models/ecommarace/user.model.js";
 import Order from "../../models/ecommarace/order.model.js";
 import Invoice from "../../models/manage/invoice.model.js";
+
 /**
  * @function createInvoice
  *
@@ -69,7 +70,6 @@ export const createInvoice = async (req, res) => {
   }
 };
 
-
 export const createInvoiceFromOrder = async(req,res)=>{
   try{
      const { value, error } = createInvoiceValidator.validate(req.body, {
@@ -114,6 +114,7 @@ export const createInvoiceFromOrder = async(req,res)=>{
     return handleError(res, error);
   }
 }
+
 /**
  * @function updateInvoice
  *
@@ -172,7 +173,6 @@ export const updateInvoice = async (req, res) => {
   }
 };
 
-
 export const updateInvoiceByUser = async (req, res) => {
   try {
     const { value, error } = createInvoiceValidator.validate(req.body, {
@@ -206,6 +206,7 @@ export const updateInvoiceByUser = async (req, res) => {
       return handleError(res, error);
     }
 }
+
 /**
  * @function deleteInvoice
  *
@@ -261,7 +262,6 @@ export const deleteInvoiceByUser = async (req, res) => {
   }
 };
 
-
 export const getInvoiceByIdForUser = async (req, res) => {
   try {
     const user = await User.findOne({ email: req.user.email }); 
@@ -280,7 +280,6 @@ export const getInvoiceByIdForUser = async (req, res) => {
     return handleError(res, error);
     }
   };
-
 
 /**
  * @function getInvoiceById
@@ -315,8 +314,6 @@ export const getInvoices = async (req, res) => {
     return handleError(res, error);
   }
 };
-
-
 
 export const getInvoiceCustomers = async (req, res) => {
   try {
@@ -393,9 +390,6 @@ export const getInvoiceCustomers = async (req, res) => {
   }
 };
 
-
-
-
 /**
  * @function deleteAllInvoices
  *
@@ -422,7 +416,6 @@ export const deleteAllInvoices = async (req, res) => {
     return handleError(res, error);
   }
 };
-
 
 export const getInvoicesByCustomerId = async (req, res) => {
   try {

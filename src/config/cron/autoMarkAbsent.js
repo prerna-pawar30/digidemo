@@ -1,6 +1,6 @@
 import cron from "node-cron";
-import  EmployeeRecord  from "../../models/manage/employee.model.js";
 import { v6 as uuidv6 } from "uuid";
+import { EmployeeRecord } from "../../models/manage/attendance.model.js";
 
 export const autoAbsentCronJob = () => {
   const getISTDate = () => {
@@ -14,50 +14,61 @@ export const autoAbsentCronJob = () => {
     "0 0 19 * * *", // 7:00 PM IST daily
     async () => {
       try {
-        console.log("Running Auto Absent Cron Job...");
-
+        console.log("Running Auto Absent Cron Job...")
         const today = getISTDate();
         const allEmployeeRecords = await EmployeeRecord.find();
-
         if(!allEmployeeRecords.length){
           console.log("No Employee Records Found. Skipping...");
           return;
         }
         let updatedCount = 0;
-        for (const empRecord of allEmployeeRecords) {
-            // if employee never started attendance (new employee)
-            if (!empRecord.records || empRecord.records.length === 0) {
-              continue;
-            }
-          // if today's record already exists, skip
-          const todayRecord = empRecord.records.find((r) => r.date === today);
-          // If already exists skip
-          if (todayRecord) continue;
-          empRecord.records.push({
-            recordId: uuidv6(),
-            date: today,
-            dayType: ["WORKING"],
-            punchIn: null,
-            punchOut: null,
-            status: ["ABSENT"],
-            totalWorkedTime: { hours: 0, minutes: 0 },
+    for (const empRecord of allEmployeeRecords) {
 
-            leaveType: null,
-            leaveDuration: null,
-            fromDate: null,
-            toDate: null,
-            leaveStatus: null,
-            leaveReason: null,
+  if (!empRecord.records) {
+    empRecord.records = [];
+  }
 
-            requiresAdminApproval: false,
-            adminAdjusted: false,
-          });
+  const todayRecord = empRecord.records.find(
+    (r) => r.date === today
+  );
 
-          empRecord.markModified("records");
-          await empRecord.save();
-          updatedCount++;
-        }
+  if (todayRecord) {
+    console.log("Already Exists");
+    continue;
+  }
 
+  console.log("ADDING ABSENT FOR:", today);
+
+  empRecord.records.push({
+    recordId: uuidv6(),
+    date: today,
+    dayType: ["WORKING"],
+    punchIn: null,
+    punchOut: null,
+    status: ["ABSENT"],
+    totalWorkedTime: {
+      hours: 0,
+      minutes: 0,
+    },
+    leaveType: null,
+    leaveDuration: null,
+    fromDate: null,
+    toDate: null,
+    leaveStatus: null,
+    leaveReason: null,
+    requiresAdminApproval: false,
+    adminAdjusted: false,
+  });
+
+  // IMPORTANT
+  empRecord.markModified("records");
+
+  await empRecord.save();
+
+  console.log("SAVED SUCCESSFULLY");
+
+  updatedCount++;
+}
         console.log(
           `Auto Absent Cron Completed | Date: ${today} | Absent Marked: ${updatedCount}`
         );

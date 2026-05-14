@@ -382,76 +382,24 @@ export const updateScanbridgeLibraryService = async ({
   logId,
   isdelivered,
 }) => {
-  if (!mongoose.Types.ObjectId.isValid(customerId)) {
-    const error = new Error("Invalid customerId");
-    error.statusCode = 400;
-    error.errorCode = "INVALID_CUSTOMER_ID";
-    throw error;
+
+  const customer = await CustomerData.findById(customerId);
+
+  if (!customer) {
+    throw new Error("Customer not found");
   }
 
-  if (!mongoose.Types.ObjectId.isValid(logId)) {
-    const error = new Error("Invalid logId");
-    error.statusCode = 400;
-    error.errorCode = "INVALID_LOG_ID";
-    throw error;
-  }
-
-  const customer = await CustomerData.findOne(
-    {
-      _id: customerId,
-      logLibrary: {
-        $elemMatch: {
-          _id: logId,
-          category: { $regex: /^scanbridge$/i },
-        },
-      },
-    },
-    {
-      "logLibrary.$": 1,
-    }
-  ).lean();
-
-  if (!customer || !customer.logLibrary?.length) {
-    const error = new Error("Scanbridge library log not found");
-    error.statusCode = 404;
-    error.errorCode = "SCANBRIDGE_LIBRARY_LOG_NOT_FOUND";
-    throw error;
-  }
-
-  await CustomerData.updateOne(
-    {
-      _id: customerId,
-      "logLibrary._id": logId,
-      "logLibrary.category": { $regex: /^scanbridge$/i },
-    },
-    {
-      $set: {
-        "logLibrary.$.isdelivered": isdelivered,
-      },
-    },
-    {
-      runValidators: false,
-    }
+  const libraryLog = customer.logLibrary.find(
+    (log) => log._id.toString() === logId
   );
 
-  const updatedCustomer = await CustomerData.findOne(
-    {
-      _id: customerId,
-      "logLibrary._id": logId,
-    },
-    {
-      "logLibrary.$": 1,
-    }
-  ).lean();
+  if (!libraryLog) {
+    throw new Error("Log not found");
+  }
 
-  const libraryLog = updatedCustomer.logLibrary[0];
+  libraryLog.isdelivered = isdelivered;
 
-  return {
-    customerId,
-    logId: libraryLog._id,
-    brandName: libraryLog.brandName || null,
-    category: libraryLog.category,
-    isdelivered: libraryLog.isdelivered,
-    date: libraryLog.date,
-  };
+  await customer.save({ validateBeforeSave: false });
+
+  return libraryLog;
 };
