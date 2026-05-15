@@ -75,14 +75,13 @@ const hierarchyMiddleware = async (req, res, next) => {
       }
 
       // ❌ cannot act on yourself
-      if (loggedInEmployee._id.equals(targetEmployee._id)) {
+      if (loggedInEmployee._id.equals(targetEmployee._id)){
         return sendError(res, {
           message: "You cannot perform this action on yourself",
           statusCode: 403,
           errorCode: "SELF_ACTION_FORBIDDEN",
         });
       }
-
       targetRole = targetEmployee.role;
     }
 

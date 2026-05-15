@@ -3,14 +3,13 @@ import { assignPermissionToEmployee, createPermission,deletePermission, getAllPe
 import auth from "../../middlewares/auth.middleware.js";
 import { checkPermission } from "../../middlewares/permission.middleware.js";
 import checkAdminRole from "../../middlewares/checkAdminRole.middleware.js";
+import hierarchyMiddleware from "../../middlewares/hierarchy.middleware.js";
 
 const router  = express.Router();
 router.post("/create", auth,checkAdminRole ,createPermission);
 router.get("/all", auth, checkAdminRole, getAllPermissions);
 router.delete("/delete/:permissionId", auth,checkAdminRole ,deletePermission);
-
-
-router.post("/assign", auth,checkPermission,assignPermissionToEmployee);
-router.post("/remove" ,auth,checkPermission,removePermissionFromEmployee);
+router.post("/assign", auth,hierarchyMiddleware,checkPermission,assignPermissionToEmployee);
+router.post("/remove" ,auth,hierarchyMiddleware,checkPermission,removePermissionFromEmployee);
 router.get("/audit-logs", auth, checkAdminRole, getPermissionAuditLogs);
 export default router;
