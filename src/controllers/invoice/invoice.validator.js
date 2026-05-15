@@ -46,5 +46,5 @@ export const createInvoiceValidator = Joi.object({
     paidAmount: Joi.number().min(0).default(0),
   }).optional(),
   notes: Joi.string().trim().allow("").optional(),
-  status: Joi.string().valid("draft", "issued", "paid", "cancelled").optional(),
+  status: Joi.string().valid("draft", "issued", "paid", "cancelled", "partially_paid").optional(),
 });
