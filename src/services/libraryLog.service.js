@@ -328,7 +328,8 @@ export const getScanbridgeLibraryService = async ({
       lastName: 1,
       email: 1,
       companyName: 1,
-      logLibrary: 1
+      logLibrary: 1,
+      mobileNumber:1,
     }
   ).lean();
 
@@ -346,6 +347,7 @@ export const getScanbridgeLibraryService = async ({
         firstName: customer.firstName,
         lastName: customer.lastName,
         email: customer.email,
+        mobileNumber:customer.mobileNumber,
         companyName: customer.companyName,
         logId: log._id,
         libraryObjectId: log.libraryObjectId || null,

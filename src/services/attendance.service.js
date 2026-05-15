@@ -20,7 +20,6 @@ export const punchInService = async (user) => {
       errorCode: "EMPLOYEE_NOT_FOUND",
     };
   }
-
   const nowIST = getISTNow();
   const today = getISTDateString(nowIST);
 
@@ -36,18 +35,19 @@ export const punchInService = async (user) => {
     });
   }
 
+
+
   /* ===== FIND TODAY RECORD ===== */
   let todayRecord = recordDoc.records.find((r) => r.date === today);
 
   if (todayRecord) {
     /* ===== ALREADY PUNCHED IN ===== */
-    if (todayRecord.punchIn) {
       throw {
-        message: "Already punched in for today",
-        statusCode: 400,
-        errorCode: "ALREADY_PUNCHED_IN",
+     message: "Document already exists for today",
+    statusCode: 400,
+    errorCode: "TODAY_RECORD_ALREADY_EXISTS",
       };
-    }
+    
 
     /* ===== HOLIDAY BLOCK ===== */
     if (todayRecord.dayType?.includes("HOLIDAY")) {
@@ -559,7 +559,6 @@ export const getAllLeaveRequestsForAdminService = async () => {
 export const getAllPunchOutRequestsForAdminService = async () => {
   const approvals = await AdminApproval.find({
     requestType: "FORGOT_PUNCH_OUT",
-    status: "PENDING",
   })
     .populate("employee", "firstName lastName email role")
     .sort({ createdAt: -1 });
