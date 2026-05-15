@@ -55,17 +55,68 @@ export const generateCustomerNo = async ({
     ? lastCustomer.customerNo + 1 : 1; 
 };
 
+
 export const createInvoiceService = async (data) => {
   const numbers = await generateInvoiceNumbers();
-
-    // CUSTOMER NUMBER LOGIC
-  const customerNo = await generateCustomerNo({
+  const invoiceDate = data.invoiceDate ? new Date(data.invoiceDate) : new Date();
+  const paymentTerms = data.paymentTerms || "Payable due amount in 10 days";
+  let customerNo = await generateCustomerNo({
     customerNo: data.customerNo,
-
-    contactPerson:
-      data.billTo?.contactPerson || "",
+    contactPerson: data.billTo?.contactPerson,
   });
-}
+  const seller = {
+    ...getDefaultSellerDetails(),
+    ...(data.seller || {}),
+  };
+
+  const bankDetails = {
+    ...getDefaultBankDetails(),
+    ...(data.bankDetails || {}),
+  };
+
+  const invoice = await Invoice.create({
+    invoiceNumber: numbers.invoiceNumber,
+    customerNo,
+    orderNumber: numbers.orderNumber,
+    invoiceDate,
+    dueDate: data.dueDate || getDueDateFromTerms(invoiceDate, paymentTerms),
+    orderDate: data.orderDate || invoiceDate,
+    deliveryDate: data.deliveryDate || invoiceDate,
+    paymentTerms,
+    termsOfDelivery: data.termsOfDelivery || "",
+    shippingCondition: data.shippingCondition || "Normal",
+    customerServiceRep: data.customerServiceRep || "",
+    seller,
+    billTo: {
+      companyName: data.billTo.companyName,
+      address: data.billTo.address || "",
+      gstin: data.billTo.gstin || "",
+      contactPerson: data.billTo.contactPerson || "",
+      contactNumber: data.billTo.contactNumber || "",
+    },
+    bankDetails,
+    items: (data.items || []).map((item, index) => ({
+      articleNo: item.articleNo || String(index + 1),
+      description: item.description,
+      qty: item.qty,
+      price: item.price,
+      discountPercent: item.discountPercent || 0,
+      discountValue: item.discountValue || 0,
+      gstType: item.gstType || "IGST",
+      gstPercent: item.gstPercent || 0,
+    })),
+    summary: {
+      freightCost: data?.summary?.freightCost || 0,
+      paidAmount: data?.summary?.paidAmount || 0,
+    },
+    notes: data.notes || "",
+    status: data.status || "issued",
+  });
+
+  return invoice;
+};
+
+
 
 export const updateInvoiceService = async ({ invoiceId, data }) => {
   const invoice = await Invoice.findOne({

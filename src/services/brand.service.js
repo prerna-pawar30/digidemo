@@ -152,7 +152,6 @@ export const updateBrandService = async ({
         : [removeFileIds];
 
       const remainingFiles = [];
-
       for (const file of brand.files || []) {
         if (ids.includes(file.fileId)) {
           await deleteFromS3(file.fileLink);
@@ -160,29 +159,23 @@ export const updateBrandService = async ({
           remainingFiles.push(file);
         }
       }
-
       brand.files = remainingFiles;
     }
-
     /* ---------- ADD NEW FILES ---------- */
     if (files && files.length > 0) {
-
       if (!categories) {
         const err = new Error("Category is required when uploading files");
         err.statusCode = 400;
         throw err;
       }
-
       const categoriesArray = Array.isArray(categories)
         ? categories
         : [categories];
-
       if (categoriesArray.length !== files.length) {
         const err = new Error("Each file must have a corresponding category");
         err.statusCode = 400;
         throw err;
       }
-
       for (const cat of categoriesArray) {
         if (!ALLOWED_CATEGORIES.includes(cat)) {
           const err = new Error(`Invalid category: ${cat}`);
@@ -190,24 +183,19 @@ export const updateBrandService = async ({
           throw err;
         }
       }
-
       for (let i = 0; i < files.length; i++) {
         const upload = await uploadToS3(files[i], "brands/file");
-
         newFileUploads.push({
           fileId: uuidv6(),
           category: categoriesArray[i],
           fileLink: upload.url,
         });
       }
-
       brand.files = brand.files || [];
       brand.files.push(...newFileUploads);
     }
-
     /* ---------- SAVE ---------- */
     await brand.save();
-
     /* ---------- AUDIT ---------- */
     await PermissionAudit.create({
       permissionAuditId: uuidv6(),
@@ -218,18 +206,13 @@ export const updateBrandService = async ({
       permission: permission || "update_brand",
       actionType: "Update",
     });
-
     return brand;
-
   } catch (error) {
-
     /* ---------- ROLLBACK ---------- */
     if (newLogoUpload?.url) await deleteFromS3(newLogoUpload.url);
-
     for (const f of newFileUploads) {
       await deleteFromS3(f.fileLink);
     }
-
     throw error;
   }
 };
@@ -237,18 +220,14 @@ export const updateBrandService = async ({
 
 export const getAllBrandsService = async () => {
   try {
-
     const brands = await Brand.find()
       .sort({ brandName: 1 })
       .lean();
-
     const totalBrands = await Brand.countDocuments();
-
     return {
        totalBrands,
        brands, 
     };
-
   } catch (error) {
     throw error;
   }
