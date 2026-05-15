@@ -197,10 +197,7 @@ export const updateBrand = async (req, res) => {
  */
 export const getAllBrands = async (req, res) => {
   try {
-
-    const { page, limit, skip } = getPagination(req.query);
-
-    const result = await getAllBrandsService({ page, limit, skip });
+    const result = await getAllBrandsService();
 
     return sendSuccess(
       res,

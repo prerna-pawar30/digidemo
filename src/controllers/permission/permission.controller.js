@@ -262,8 +262,7 @@ export const assignPermissionToEmployee = async (req, res) => {
 export const removePermissionFromEmployee = async (req, res) => {
   try {
     const { value, error } = validateAssignPermissionBody(req.body);
-
-    if (error) {
+    if(error){
       return sendError(res, {
         message: "Validation failed",
         statusCode: 400,

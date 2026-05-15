@@ -135,61 +135,50 @@ export const deletePermissionService = async (
   return permission;
 };
 
-export const assignPermissionToEmployeeService = async (
+export const assignPermissionToEmployeeService = async(
   data,
   currentUser
 ) => {
   const { email, permission } = data;
-
   /* ---------- AUTH CHECK ---------- */
   const admin = await Employee.findOne({ email: currentUser.email });
-
   if (!admin) {
     const err = new Error("Unauthorized");
     err.statusCode = 401;
     throw err;
   }
-
   /* ---------- TARGET EMPLOYEE ---------- */
   const target = await Employee.findOne({ email });
-
   if (!target) {
     const err = new Error("Employee not found");
     err.statusCode = 404;
     throw err;
   }
-
   /* ---------- PERMISSION CHECK ---------- */
   const permExists = await Permission.findOne({ name: permission });
-
   if (!permExists) {
     const err = new Error("Permission not found");
     err.statusCode = 400;
     throw err;
   }
-
   /* ---------- DUPLICATE CHECK ---------- */
   if (target.permissions.includes(permission)) {
     const err = new Error("Permission already assigned");
     err.statusCode = 409;
     throw err;
   }
-
   /* ---------- ASSIGN PERMISSION ---------- */
   await Employee.updateOne(
     { email },
     { $addToSet: { permissions: permission } }
   );
-
   /* ---------- AUDIT LOG ---------- */
   await PermissionAudit.create({
     permissionAuditId: uuidv6(),
     actionBy: admin._id,
     actionByEmail: admin.email,
-
     actionFor: target._id,
     actionForEmail: target.email,
-
     permission: permission,
     action: "assign",
   });

@@ -24,12 +24,8 @@ import { sendError, handleError } from "../helpers/error.helper.js";
  */
 const checkAdminRole = async (req, res, next) => {
   try {
-    /* =========================
-       AUTH CHECK
-    ========================= */
     const email = req.user?.email;
-
-    if (!email) {
+    if(!email){
       return sendError(res, {
         message: "Unauthorized",
         statusCode: 401,
@@ -43,11 +39,10 @@ const checkAdminRole = async (req, res, next) => {
     const user = await Employee.findOne({
       email,
       isDeleted: false,
-    })
-      .select("_id email role")
+    }).select("_id email role")
       .lean();
 
-    if (!user) {
+    if (!user){
       throw new Error("USER_NOT_FOUND");
     }
 
@@ -63,16 +58,13 @@ const checkAdminRole = async (req, res, next) => {
         errorCode: "ADMIN_ROLE_REQUIRED",
       });
     }
-
     /* =========================
        ATTACH USER
     ========================= */
     req.currentUser = user;
-
     next();
   } catch (error) {
     return handleError(res, error);
   }
 };
-
 export default checkAdminRole;

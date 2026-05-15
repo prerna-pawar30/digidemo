@@ -235,25 +235,18 @@ export const updateBrandService = async ({
 };
 
 
-export const getAllBrandsService = async ({ page, limit, skip }) => {
+export const getAllBrandsService = async () => {
   try {
 
     const brands = await Brand.find()
       .sort({ brandName: 1 })
-      .skip(skip)
-      .limit(limit)
       .lean();
 
     const totalBrands = await Brand.countDocuments();
 
     return {
-      brands,
-      pagination: {
-        currentPage: page,
-        totalPages: Math.ceil(totalBrands / limit),
-        totalBrands,
-        limit,
-      },
+       totalBrands,
+       brands, 
     };
 
   } catch (error) {
