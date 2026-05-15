@@ -295,14 +295,6 @@ export const deleteBrandService = async ({ brandId, employee, permission }) => {
       err.statusCode = 400;
       throw err;
     }
-
-    /* ---------- PERMISSION CHECK ---------- */
-    if (permission && permission !== "delete_brand") {
-      const err = new Error("Unauthorized permission");
-      err.statusCode = 403;
-      throw err;
-    }
-
     /* ---------- FIND BRAND ---------- */
     const brand = await Brand.findOne({ brandId });
 
