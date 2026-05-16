@@ -282,11 +282,12 @@ export const googleCallback = (req, res, next) => {
   passport.authenticate("google", { session: false }, async (err, user) => {
     try {
       if (err || !user) {
+        cconsole.log("eror come from here");
         return res.redirect(`${process.env.FRONTEND_URL}/login?error=google-failed`);
       }
       const { accessToken, refreshToken } = generateTokens(user);
       console.log("accessToken --------",accessToken);
-      console.log("refershToken",refreshToken)
+      console.log("refershToken --------",refreshToken)
       res.cookie("refreshToken", refreshToken, {
         httpOnly: true,
         secure: true,
