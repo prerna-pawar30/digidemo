@@ -285,6 +285,8 @@ export const googleCallback = (req, res, next) => {
         return res.redirect(`${process.env.FRONTEND_URL}/login?error=google-failed`);
       }
       const { accessToken, refreshToken } = generateTokens(user);
+      console.log("accessToken --------",accessToken);
+      console.log("refershToken",refreshToken)
       res.cookie("refreshToken", refreshToken, {
         httpOnly: true,
         secure: true,
