@@ -5,6 +5,7 @@ import { validateRegisterBody, validateLoginBody, validateResetPasswordBody } fr
 import passport from "passport";
 import {getPagination} from "../../../../src/helpers/pagination.helper.js";
 import User from "../../../models/ecommarace/user.model.js";
+import { generateTokens } from "../../../helpers/token.helper.js";
 
 
 /**
