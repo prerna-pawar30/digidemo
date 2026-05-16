@@ -8,6 +8,18 @@ import { v6 as uuidv6 } from "uuid";
 
 /* ================= COMMON OAUTH HANDLER ================= */
 
+  /* GOOGLE */
+  passport.use(
+    new GoogleStrategy(
+      {
+        clientID: process.env.GOOGLE_CLIENT_ID,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+        callbackURL: process.env.GOOGLE_CALLBACK_URL,
+      },(accessToken, refreshToken, profile, done) =>
+        handleOAuth(profile, "google", done)
+    )
+  );
+
 export async function handleOAuth(profile, provider, done) {
   try {
 
@@ -21,6 +33,7 @@ export async function handleOAuth(profile, provider, done) {
     const firstName = profile.name?.givenName || "Unknown";
     const lastName = profile.name?.familyName || "";
     const avatar = profile.photos?.[0]?.value;
+    console.log("firtNAme----",firstName);
 
     if (!user) {
 
@@ -48,6 +61,7 @@ export async function handleOAuth(profile, provider, done) {
     }
     return done(null, user);
   } catch (err) {
+    console.log("errnor in pasport function");
     return done(err, false);
   }
 }
@@ -58,18 +72,7 @@ export async function handleOAuth(profile, provider, done) {
 
 export default function setupPassport() {
 
-  /* GOOGLE */
-  passport.use(
-    new GoogleStrategy(
-      {
-        clientID: process.env.GOOGLE_CLIENT_ID,
-        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-        callbackURL: process.env.GOOGLE_CALLBACK_URL,
-      },
-      (accessToken, refreshToken, profile, done) =>
-        handleOAuth(profile, "google", done)
-    )
-  );
+
 
   /* MICROSOFT */
   passport.use(

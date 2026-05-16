@@ -279,6 +279,7 @@ export const googleAuth = passport.authenticate("google", {
  * Redirects user to frontend success page after successful authentication
  */
 export const googleCallback = (req, res, next) => {
+  console.log("enter in google auth api");
   passport.authenticate("google", { session: false }, async (err, user) => {
     try {
       if (err || !user) {
