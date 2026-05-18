@@ -142,12 +142,10 @@ app.use(async (req, res, next) => {
       `http://ip-api.com/json/${ip}?fields=${fields}`,
       { timeout: 1500 }
     );
-
     req.geoIpApi = data.status === "success" ? data : null;
   } catch {
     req.geoIpApi = null;
   }
-
   next();
 });
 app.use(ipAnalyticsMiddleware);
@@ -183,23 +181,24 @@ app.use("/api/v1/product-review", productReviewRoutes);
 /* -------------------------------
    START SERVER
 -------------------------------- */
+/* -------------------------------
+   START SERVER
+-------------------------------- */
+
 const startServer = async () => {
   try {
 
     await connectDB();
-
-    await redis.ping();
-
+   await redis.ping();
+  
     bestSellerCronJob();
-
     autoAbsentCronJob();
-
     startCouponExpiryCron();
 
     const PORT = process.env.PORT || 3000;
 
-    server.listen(PORT, () => {
-      console.log(`🚀 Server running on http://localhost:${PORT}`);
+    server.listen(PORT, "0.0.0.0", () => {
+      console.log(`🚀 Server running on port ${PORT}`);
     });
 
   } catch (error) {
