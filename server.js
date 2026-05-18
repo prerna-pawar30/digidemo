@@ -3,6 +3,8 @@ import dotenv from "dotenv";
 import passport from "passport";
 import connectDB from "./src/config/db.config.js";
 import userRoutes from "./src/routes/ecommarace/user.routes.js";
+import http from "http";
+import { Server } from "socket.io";
 import setupPassport from "./src/config/passport.js";
 import cookieParser from "cookie-parser";
 import env from "dotenv";
@@ -39,14 +41,27 @@ import careerRoutes from "./src/routes/career/career.routes.js";
 import blogRoutes from "./src/routes/blog/blog.route.js";
 import invoiceRoutes from "./src/routes/manage/invoice.route.js"
 import productReviewRoutes from "./src/routes/manage/productReview.routes.js"
-
+import { redis } from "./src/config/redis.config.js";
 
 
 dotenv.config();
-
 const app = express();
 app.use(express.json());
-
+/* CREATE HTTP SERVER */
+const server = http.createServer(app);
+/* SOCKET SERVER */
+export const io = new Server(server, {
+  cors: {
+    origin: "*",
+  }
+});
+/* SOCKET CONNECTION */
+io.on("connection", (socket) => {
+  console.log("✅ User Connected:", socket.id);
+  socket.on("disconnect", () => {
+    console.log("❌ User Disconnected:", socket.id);
+  });
+});
 
 // Load Environment
 env.config({
@@ -136,6 +151,7 @@ app.use(async (req, res, next) => {
   next();
 });
 app.use(ipAnalyticsMiddleware);
+
 /* -------------------------------
    USER ROUTES
 -------------------------------- */
@@ -167,23 +183,29 @@ app.use("/api/v1/product-review", productReviewRoutes);
 /* -------------------------------
    START SERVER
 -------------------------------- */
-console.log("Starting server...");
-
 const startServer = async () => {
   try {
+
     await connectDB();
-     bestSellerCronJob();
+
+    await redis.ping();
+
+    bestSellerCronJob();
+
     autoAbsentCronJob();
+
     startCouponExpiryCron();
 
     const PORT = process.env.PORT || 3000;
 
-    app.listen(PORT, () => {
-      console.log(`Server running on http://localhost:${PORT}`);
+    server.listen(PORT, () => {
+      console.log(`🚀 Server running on http://localhost:${PORT}`);
     });
 
   } catch (error) {
+
     console.error("Database connection failed:", error);
+
   }
 };
 
