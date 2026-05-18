@@ -49,20 +49,6 @@ const app = express();
 app.use(express.json());
 /* CREATE HTTP SERVER */
 const server = http.createServer(app);
-/* SOCKET SERVER */
-export const io = new Server(server, {
-  cors: {
-    origin: "*",
-  }
-});
-/* SOCKET CONNECTION */
-io.on("connection", (socket) => {
-  console.log("✅ User Connected:", socket.id);
-  socket.on("disconnect", () => {
-    console.log("❌ User Disconnected:", socket.id);
-  });
-});
-
 // Load Environment
 env.config({
   path: `.env.${process.env.NODE_ENV || "development"}`,
@@ -107,6 +93,46 @@ app.use(
   })
 );
 
+
+/* SOCKET SERVER */
+export const io = new Server(server, {
+  cors: {
+    origin: allowedOrigins,
+    credentials: true,
+    methods: ["GET", "POST"],
+  },
+});
+// store online users (employeeId -> socketId)
+const onlineUsers = new Map();
+/* SOCKET CONNECTION */
+io.on("connection", (socket) => {
+  console.log("Socket Connected:", socket.id);
+
+  // client will emit this after login
+  socket.on("registerUser", ({ userId, role }) => {
+    if (!userId) return;
+
+    onlineUsers.set(userId, socket.id);
+
+    console.log(`User Registered: ${userId} (${role})`);
+    console.log("Online Users:", onlineUsers.size);
+  });
+
+  socket.on("disconnect", () => {
+    console.log("Socket Disconnected:", socket.id);
+
+    // remove disconnected user
+    for (const [userId, socketId] of onlineUsers.entries()) {
+      if (socketId === socket.id) {
+        onlineUsers.delete(userId);
+        console.log(`User Removed: ${userId}`);
+        break;
+      }
+    }
+
+    console.log("Online Users:", onlineUsers.size);
+  });
+});
 
 /* -------------------------------
    HEALTH CHECK ROUTE
@@ -184,28 +210,22 @@ app.use("/api/v1/product-review", productReviewRoutes);
 /* -------------------------------
    START SERVER
 -------------------------------- */
-
-const startServer = async () => {
+ const serverSetup = async () => {
   try {
-
     await connectDB();
    await redis.ping();
-  
     bestSellerCronJob();
     autoAbsentCronJob();
     startCouponExpiryCron();
-
     const PORT = process.env.PORT || 3000;
 
-    server.listen(PORT, "0.0.0.0", () => {
-      console.log(`🚀 Server running on port ${PORT}`);
+    server.listen(PORT, () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+      console.log(`Socket.IO running on same server`);
     });
-
   } catch (error) {
-
-    console.error("Database connection failed:", error);
-
+    console.error("DB Connection Failed:", error);
   }
 };
 
-startServer();
+serverSetup();
