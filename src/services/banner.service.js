@@ -5,7 +5,7 @@ import { PermissionAudit } from "../models/manage/permissionaudit.model.js";
 import Category from "../models/manage/category.model.js";
 import Brand from "../models/manage/brand.model.js";
 import Product from "../models/manage/product.model.js";
-
+import { sendNotification } from "./notification.service.js"
 export const createBannerService = async ({
   filterBy,
   filterId,
@@ -61,6 +61,37 @@ export const createBannerService = async ({
       permission: permission || "create_banner",
       actionType: "Create",
     });
+
+ await sendNotification({
+  sender: employee._id,
+
+  permission: "banner.listing.read",
+
+  title: "New Banner Created",
+
+  message: `A new banner has been created for ${filterBy} and assigned display order ${displayOrder}`,
+
+  type: "BANNER_CREATED",
+
+  entityId: banner._id,
+  entityModel: "Banner",
+
+  metadata: {
+    bannerId: banner.bannerId,
+    filterBy,
+    filterId,
+    displayOrder,
+    isActive,
+    imageUrl: banner.imageUrl,
+    createdBy: employee.email,
+  },
+
+  priority: "MEDIUM",
+
+  redirectUrl: `/banners/${banner._id}`,
+
+  isBroadcast: true,
+});
     return banner;
   } catch (error) {
     /* ---------- ROLLBACK ---------- */

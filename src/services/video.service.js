@@ -2,6 +2,7 @@ import YTVideo from "../models/manage/video.model.js";
 import Employee from "../models/manage/employee.model.js";
 import { PermissionAudit } from "../models/manage/permissionaudit.model.js";
 import { v6 as uuidv6 } from "uuid";
+import { sendNotification } from "./notification.service.js";
 
 export const getYTDocService = async ({
   page,
@@ -84,17 +85,30 @@ export const addVideoService = async ({
     doc.videos.push(newVideo);
     await doc.save();
     /* ---------- AUDIT LOG ---------- */
-    console.log("actionBy:", employee._id, "actionByEmail:", employee.email, "actionFor:", doc._id, "action:", `Added YouTube video: ${title}`, "permission:", permission, "actionType: Create");
-    // await PermissionAudit.create({
-    //   permissionAuditId: uuidv6(),
-    //   actionBy: employee._id,
-    //   actionByEmail: employee.email,
-    //   // actionFor: doc._id,
-    //   actionFor:"video_document",
-    //   action: `Added YouTube video: ${title}`,
-    //   permission: permission,
-    //   actionType: "Create"
-    // });
+ await PermissionAudit.create({
+  permissionAuditId: uuidv6(),
+  actionBy: employee._id,
+  actionByEmail: employee.email,
+  actionFor: doc._id,
+  action: `Added YouTube video: ${title}`,
+  permission: permission || "video.create",
+  actionType: "Create"
+});
+      /* ---------- SEND NOTIFICATION ---------- */
+    await sendNotification({
+      sender: employee._id,
+      permission: "video.listing.read",
+      title: "New YouTube Video Added",
+      message: `A new YouTube video "${title}" has been added`,
+      type: "YOUTUBE_VIDEO_CREATED",
+      entityId: newVideo.ytVideoId,
+      entityModel: "YTVideo",
+      metadata: {
+        ytVideoId: newVideo.ytVideoId,
+        title,
+        link,
+      },
+    });
     /* ---------- RESPONSE ---------- */
     return {
       video: newVideo

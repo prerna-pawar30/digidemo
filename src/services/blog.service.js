@@ -2,6 +2,9 @@ import Blog from "../models/blog/blog.modal.js";
 import slugify from "slugify";
 import { v6 as uuidv6 } from "uuid";
 import BlogView from "../models/blog/blogView.model.js";
+import { sendNotification } from "./notification.service.js";
+import { PermissionAudit } from "../models/manage/permissionaudit.model.js";
+
 export const createBlogService = async ({ data, employee }) => {
   const exists = await Blog.findOne({
     $or: [{ title: data.title }, { slug: data.slug }],
@@ -25,6 +28,43 @@ export const createBlogService = async ({ data, employee }) => {
     ...data,
      slug,
     createdBy: employee?._id || null,
+  });
+
+    /* ---------- CREATE AUDIT LOG ---------- */
+
+  await PermissionAudit.create({
+
+    permissionAuditId: uuidv6(),
+
+    actionBy: employee?._id,
+
+    actionByEmail: employee?.email,
+
+    actionFor: blog._id,
+
+    action: `Created blog: ${blog.title}`,
+
+    permission: "blog.create",
+
+    actionType: "Create",
+  });
+
+    /* ---------- SEND NOTIFICATION ---------- */
+
+  await sendNotification({
+    sender: employee?._id || null,
+    permission: "blog.listing.read",
+    title: "New Blog Created",
+    message: `A new blog "${blog.title}" has been published`,
+    type: "BLOG_CREATED",
+    entityId: blog._id,
+    entityModel: "Blog",
+    metadata: {
+      blogId: blog._id,
+      title: blog.title,
+      slug: blog.slug,
+      category: blog.category || null,
+    },
   });
 
   return blog;
