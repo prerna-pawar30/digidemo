@@ -41,13 +41,11 @@ import blogRoutes from "./src/routes/blog/blog.route.js";
 import invoiceRoutes from "./src/routes/manage/invoice.route.js"
 import productReviewRoutes from "./src/routes/manage/productReview.routes.js"
 import { redis } from "./src/config/redis.config.js";
-
+import { onlineUsers } from "./src/sockets/socket.js";
 
 dotenv.config();
 const app = express();
 app.use(express.json());
-/* CREATE HTTP SERVER */
-const server = http.createServer(app);
 // Load Environment
 env.config({
   path: `.env.${process.env.NODE_ENV || "development"}`,
@@ -92,46 +90,14 @@ app.use(
   })
 );
 
+import { initSocket } from "./src/sockets/socket.js";
 
-/* SOCKET SERVER */
-export const io = new Server(server, {
-  cors: {
-    origin: allowedOrigins,
-    credentials: true,
-    methods: ["GET", "POST"],
-  },
-});
-// store online users (employeeId -> socketId)
-const onlineUsers = new Map();
-/* SOCKET CONNECTION */
-io.on("connection", (socket) => {
-  console.log("Socket Connected:", socket.id);
+const server = http.createServer(app);
 
-  // client will emit this after login
-  socket.on("registerUser", ({ userId, role }) => {
-    if (!userId) return;
+// ✅ initialize socket correctly
+initSocket(server, allowedOrigins);
 
-    onlineUsers.set(userId, socket.id);
 
-    console.log(`User Registered: ${userId} (${role})`);
-    console.log("Online Users:", onlineUsers.size);
-  });
-
-  socket.on("disconnect", () => {
-    console.log("Socket Disconnected:", socket.id);
-
-    // remove disconnected user
-    for (const [userId, socketId] of onlineUsers.entries()) {
-      if (socketId === socket.id) {
-        onlineUsers.delete(userId);
-        console.log(`User Removed: ${userId}`);
-        break;
-      }
-    }
-
-    console.log("Online Users:", onlineUsers.size);
-  });
-});
 
 /* -------------------------------
    HEALTH CHECK ROUTE
@@ -203,9 +169,7 @@ app.use("/api/v1/career", careerRoutes);
 app.use("/api/v1/blog",blogRoutes);
 app.use("/api/v1/invoice",invoiceRoutes)
 app.use("/api/v1/product-review", productReviewRoutes);
-/* -------------------------------
-   START SERVER
--------------------------------- */
+
 /* -------------------------------
    START SERVER
 -------------------------------- */

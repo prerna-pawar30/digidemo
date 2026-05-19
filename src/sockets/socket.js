@@ -1,70 +1,56 @@
+import { Server } from "socket.io";
+
 export const onlineUsers = new Map();
 
-export const initializeSocket = (io) => {
+let io;
+
+export const initSocket = (server, allowedOrigins) => {
+  io = new Server(server, {
+    cors: {
+      origin: allowedOrigins,
+      credentials: true,
+      methods: ["GET", "POST"],
+    },
+  });
 
   io.on("connection", (socket) => {
-
     console.log("Socket Connected:", socket.id);
 
-    /* ---------- REGISTER USER ---------- */
+    const userId = socket.handshake.auth.userId;
+    console.log("Handshake auth:", socket.handshake.auth);
 
-    socket.on("registerUser", ({ userId }) => {
-
-      if (!userId) return;
-
-      const existingSockets =
-        onlineUsers.get(userId) || [];
-
-      /* Prevent duplicate socket ids */
-
-      if (!existingSockets.includes(socket.id)) {
-        existingSockets.push(socket.id);
+    if (userId) {
+      if (!onlineUsers.has(userId)) {
+        onlineUsers.set(userId, []);
       }
 
-      onlineUsers.set(
-        userId,
-        existingSockets
-      );
+      onlineUsers.get(userId).push(socket.id);
 
-      console.log("Online Users:", onlineUsers);
-    });
-
-    /* ---------- DISCONNECT ---------- */
+      console.log("User Connected:", userId);
+    }
 
     socket.on("disconnect", () => {
+      console.log("Socket Disconnected:", socket.id);
 
-      console.log(
-        "Socket Disconnected:",
-        socket.id
-      );
+      if (userId) {
+        const sockets = onlineUsers.get(userId) || [];
+        const updated = sockets.filter(id => id !== socket.id);
 
-      for (const [userId, sockets] of onlineUsers.entries()) {
-
-        /* Remove disconnected socket */
-
-        const updatedSockets = sockets.filter(
-          (id) => id !== socket.id
-        );
-
-        /* Remove user if no sockets left */
-
-        if (updatedSockets.length === 0) {
-
+        if (updated.length === 0) {
           onlineUsers.delete(userId);
-
         } else {
-
-          onlineUsers.set(
-            userId,
-            updatedSockets
-          );
+          onlineUsers.set(userId, updated);
         }
       }
-
-      console.log(
-        "Online Users:",
-        onlineUsers
-      );
     });
   });
+
+  return io;
+};
+
+export const getIO = () => {
+  if (!io) {
+    throw new Error("Socket.io not initialized");
+  }
+  return io;
 };

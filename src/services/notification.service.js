@@ -1,7 +1,9 @@
 import Employee from "../models/manage/employee.model.js";
-import { io } from "../../server.js";
+import { getIO } from "../sockets/socket.js";
 import { onlineUsers } from "../sockets/socket.js";
 import Notification from "../models/manage/notification.model.js";
+
+
 
 export const sendNotification = async ({
   receivers = [],
@@ -14,7 +16,7 @@ export const sendNotification = async ({
   entityModel = null,
   metadata = {},
 }) => {
-
+ const io = getIO();
   let employees = [];
 
   /* ---------- DIRECT RECEIVERS ---------- */

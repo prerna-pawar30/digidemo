@@ -74,26 +74,18 @@ export const createEmployeeService = async (data, adminEmail) => {
 
   await sendNotification({
     sender: admin._id,
-
     permission: "employee.listing.read",
-
     title: "New Employee Created",
-
     message: `${firstName} ${lastName} has been added as ${role}`,
-
     type: "EMPLOYEE_CREATED",
-
     entityId: newEmployee._id,
-
     entityModel: "Employee",
-
     metadata: {
       employeeName: `${firstName} ${lastName}`,
       employeeEmail: email,
       role,
     },
   });
-
   return newEmployee;
 };
 
