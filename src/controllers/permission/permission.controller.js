@@ -205,7 +205,6 @@ export const deletePermission = async (req, res) => {
 export const assignPermissionToEmployee = async (req, res) => {
   try {
     const { value, error } = validateAssignPermissionBody(req.body);
-
     if (error) {
       return sendError(res, {
         message: "Validation failed",

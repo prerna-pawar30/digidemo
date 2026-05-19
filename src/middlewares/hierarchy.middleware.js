@@ -49,7 +49,10 @@ const hierarchyMiddleware = async (req, res, next) => {
 
     /* ================= CREATE ================= */
     if (req.method === "POST") {
-      targetRole = req.body?.role;
+
+      console.log(targetRole)
+     
+     
 
       if (targetRole === undefined) {
         return sendError(res, {
