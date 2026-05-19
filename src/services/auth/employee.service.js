@@ -8,6 +8,8 @@ import { generateTokens } from "../../helpers/token.helper.js";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import { resetPasswordTemplate } from "../../config/templates/resetPasswordTemplate.js";
+import { sendNotification } from "../notification.service.js";
+
 
 export const createEmployeeService = async (data, adminEmail) => {
   const {
@@ -45,15 +47,12 @@ export const createEmployeeService = async (data, adminEmail) => {
     password,
     personalEmail,
     role,
-    createdBy:" dharmik@digident.in",
     createdBy: adminEmail,
     isNewEmployee: true,
   });
 
   /* Send welcome email */
-
   const htmlBody = employeeWelcomeEmail(firstName, email, password);
-
   await sendZohoMail(
     personalEmail,
     "Login to your Company Account",
@@ -61,7 +60,6 @@ export const createEmployeeService = async (data, adminEmail) => {
   );
 
   /* Permission audit */
-
   await PermissionAudit.create({
     permissionAuditId: uuidv6(),
     actionBy: admin._id,
@@ -71,6 +69,31 @@ export const createEmployeeService = async (data, adminEmail) => {
     permission: permission || "create_employee",
     actionType: "Create",
   });
+
+    /* ---------- SEND NOTIFICATION ---------- */
+
+  await sendNotification({
+    sender: admin._id,
+
+    permission: "employee.listing.read",
+
+    title: "New Employee Created",
+
+    message: `${firstName} ${lastName} has been added as ${role}`,
+
+    type: "EMPLOYEE_CREATED",
+
+    entityId: newEmployee._id,
+
+    entityModel: "Employee",
+
+    metadata: {
+      employeeName: `${firstName} ${lastName}`,
+      employeeEmail: email,
+      role,
+    },
+  });
+
   return newEmployee;
 };
 

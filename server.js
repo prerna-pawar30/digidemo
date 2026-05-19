@@ -8,7 +8,6 @@ import { Server } from "socket.io";
 import setupPassport from "./src/config/passport.js";
 import cookieParser from "cookie-parser";
 import env from "dotenv";
-
 import addressRoutes from "./src/routes/ecommarace/address.routes.js";
 import employeeRoutes from "./src/routes/manage/employee.routes.js";
 import brandRoutes from "./src/routes/manage/brand.routes.js";
@@ -227,5 +226,5 @@ app.use("/api/v1/product-review", productReviewRoutes);
     console.error("DB Connection Failed:", error);
   }
 };
-
 serverSetup();
+
