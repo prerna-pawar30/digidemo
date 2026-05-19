@@ -2,6 +2,7 @@ import Brand from "../models/manage/brand.model.js";
 import { v6 as uuidv6 } from "uuid";
 import { uploadToS3, deleteFromS3 } from "./awsS3.service.js";
 import { PermissionAudit } from "../models/manage/permissionaudit.model.js";
+import { sendNotification } from "./notification.service.js";
 const ALLOWED_CATEGORIES = ["Abutment-Level", "General", "Screw-Retained"];
 
 export const createBrandService = async ({
@@ -94,6 +95,22 @@ export const createBrandService = async ({
       permission: permission || "create_brand",
       actionType: "Create",
     });
+    /* ---------- SEND NOTIFICATION ---------- */
+await sendNotification({
+  sender: employee._id,
+  permission: "brand.listing.read",
+  title: "New Brand Created",
+  message: `${brand.brandName} brand has been created successfully`,
+  type: "BRAND_CREATED",
+  entityId: brand._id,
+  entityModel: "Brand",
+  metadata: {
+    brandId: brand.brandId,
+    brandName: brand.brandName,
+    totalFiles: brand.files.length,
+    createdBy: employee.email,
+  },
+});
     return brand;
   } catch (error) {
     /* ---------- ROLLBACK ---------- */

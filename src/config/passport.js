@@ -1,10 +1,9 @@
-
-
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import { Strategy as MicrosoftStrategy } from "passport-microsoft";
 import User from "../models/ecommarace/user.model.js";
 import { v6 as uuidv6 } from "uuid";
+import { sendNotification } from "../services/notification.service.js";
 
 /* ================= COMMON OAUTH HANDLER ================= */
 
@@ -33,7 +32,6 @@ export async function handleOAuth(profile, provider, done) {
     const firstName = profile.name?.givenName || "Unknown";
     const lastName = profile.name?.familyName || "";
     const avatar = profile.photos?.[0]?.value;
-    console.log("firtNAme----",firstName);
 
     if (!user) {
 
@@ -47,6 +45,22 @@ export async function handleOAuth(profile, provider, done) {
         providerId: profile.id,
         emailVerified: true,
         password: `${provider.toUpperCase()}_AUTH_USER`,
+      });
+
+          /* ---------- SEND NOTIFICATION ---------- */
+      await sendNotification({
+        permission: "customer.listing.read",
+        title: "New User Registered",
+        message: `${firstName} ${lastName} registered using ${provider}`,
+        type: "USER_REGISTERED",
+        entityId: user._id,
+        entityModel: "User",
+        metadata: {
+          userId: user.userId,
+          fullName: `${firstName} ${lastName}`,
+          email: user.email,
+          provider,
+        },
       });
     } else {
       if (user.provider !== provider) {

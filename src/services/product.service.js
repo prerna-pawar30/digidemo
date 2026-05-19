@@ -3,6 +3,7 @@ import Product from "../models/manage/product.model.js";
 import Employee from "../models/manage/employee.model.js";
 import { PermissionAudit } from "../models/manage/permissionaudit.model.js";
 import { uploadToS3, deleteFromS3 } from "./awsS3.service.js";
+import { sendNotification } from "./notification.service.js";
 /**
  * @function uploadFiles
  *
@@ -86,8 +87,7 @@ export const addProductService = async ({ body, files, user }) => {
         groupedDesc[idx] = [];
       }
       groupedDesc[idx].push(file);
-    });
-console.log("Grouped description files:----", groupedDesc); 
+    }); 
     body.description = await Promise.all(
       body.description.map(async (desc, index) => {
         const paragraphFiles = groupedDesc[index] || [];
@@ -171,6 +171,26 @@ console.log("Grouped description files:----", groupedDesc);
       action: product.name,
       permission: body.permission || "create_product",
       actionType: "Create",
+    });
+
+    /* ---------- SEND NOTIFICATION ---------- */
+    await sendNotification({
+      sender: employee._id,
+      permission: "product.listing.read",
+      title: "New Product Added",
+      message: `A new product "${product.name}" has been added`,
+      type: "PRODUCT_CREATED",
+      entityId: product._id,
+      entityModel: "Product",
+      metadata: {
+        productId: product.productId,
+        name: product.name,
+        slug: product.slug || null,
+        brand: product.brand || null,
+        category: product.category || null,
+        stockType: product.stockType,
+        createdBy: employee.email,
+      },
     });
     return product;
   } catch (error) {

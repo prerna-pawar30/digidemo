@@ -2,6 +2,7 @@ import { v6 as uuidv6 } from "uuid";
 import Category from "../models/manage/category.model.js";
 import { uploadToS3, deleteFromS3 } from "./awsS3.service.js";
 import { PermissionAudit}  from "../models/manage/permissionaudit.model.js";
+import { sendNotification } from "./notification.service.js";
 
 export const createCategoryService = async ({
   name,
@@ -44,6 +45,22 @@ export const createCategoryService = async ({
       permission: permission,
       actionType: "Create",
     });
+    /* ---------- NOTIFICATION ---------- */
+await sendNotification({
+  sender: employee._id,
+  permission: "category.listing.read",
+  title: "New Category Created",
+  message: `${category.name} category has been created successfully`,
+  type: "CATEGORY_CREATED",
+  entityId: category._id,
+  entityModel: "Category",
+  metadata: {
+    categoryId: category.categoryId,
+    categoryName: category.name,
+    image: category.image,
+    createdBy: employee.email,
+  },
+});
 
     return category;
 

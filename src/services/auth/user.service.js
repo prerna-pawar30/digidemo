@@ -10,6 +10,7 @@ import jwt from "jsonwebtoken";
 import { uploadToS3 } from "../awsS3.service.js";
 import Order from "../../models/ecommarace/order.model.js";
 import Cart from "../../models/ecommarace/cart.model.js";
+import { sendNotification } from "../notification.service.js";
 
 
 // REGISTER
@@ -36,6 +37,22 @@ export const registerUserService = async (data) => {
   const verifyUrl = `${process.env.FRONTEND_URL}/verify-email/${token}`;
   const htmlBody = verifyEmailTemplate(verifyUrl, firstName);
   await sendZohoMail(email, "Verify your Email", htmlBody);
+
+  /* ---------- SEND NOTIFICATION ---------- */
+  await sendNotification({
+    permission: "customer.listing.read",
+    title: "New User Registered",
+    message: `${firstName} ${lastName} has registered successfully`,
+    type: "USER_REGISTERED",
+    entityId: user._id,
+    entityModel: "User",
+    metadata: {
+      userId: user.userId,
+      fullName: `${firstName} ${lastName}`,
+      email: user.email,
+      instituteName: user.instituteName || null,
+    },
+  });
   return user;
 };
 

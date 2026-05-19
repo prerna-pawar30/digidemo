@@ -1,6 +1,7 @@
 import Job from "../models/manage/job.model.js";
 import { generateSlug } from "../helpers/slug.helper.js";
 import { v6 as uuidv6 } from "uuid";
+import { sendNotification } from "./notification.service.js";
 
 export const createJobService = async ({ data, employee }) => {
   let baseSlug = generateSlug(data.title);
@@ -26,6 +27,20 @@ export const createJobService = async ({ data, employee }) => {
       email: employee?.email || null,
     },
   });
+
+  await sendNotification({
+  sender: employee?._id,
+  permission: "job.listing.read",
+  title: "Job Created",
+  message: `New job opening added for ${data.title}`,
+  type: "JOB_CREATED",
+  entityId: job._id,
+  entityModel: "Job",
+  metadata: {
+    title: job.title,
+    slug: job.slug,
+  },
+});
 
   return job;
 };
