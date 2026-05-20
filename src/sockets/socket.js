@@ -1,9 +1,7 @@
 import { Server } from "socket.io";
 
 export const onlineUsers = new Map();
-
 let io;
-
 export const initSocket = (server, allowedOrigins) => {
   io = new Server(server, {
     cors: {
@@ -12,13 +10,10 @@ export const initSocket = (server, allowedOrigins) => {
       methods: ["GET", "POST"],
     },
   });
-
   io.on("connection", (socket) => {
     console.log("Socket Connected:", socket.id);
-
     const userId = socket.handshake.auth.userId;
     console.log("Handshake auth:", socket.handshake.auth);
-
     if (userId) {
       if (!onlineUsers.has(userId)) {
         onlineUsers.set(userId, []);

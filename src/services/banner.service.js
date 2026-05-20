@@ -79,6 +79,8 @@ export const createBannerService = async ({
       isActive, 
       displayOrder,
     });
+// Clear Banner CachE
+      await clearBannerCache();
 
     /* ---------- AUDIT ---------- */
 
@@ -117,9 +119,6 @@ export const createBannerService = async ({
         createdBy: employee.email,
       },
     });
-
-    /* ---------- CLEAR CACHE ---------- */
-    await clearBannerCache();
     return banner;
   } catch (error) {
     /* ---------- ROLLBACK ---------- */
@@ -145,7 +144,7 @@ export const getAllBannersService = async ({
 
     const skip = (page - 1) * limit;
 
-    const cacheKey = `BANNERS:ALL:${page}:${limit}`;
+    const cacheKey = `BANNER:ALL:${page}:${limit}`;
 
     /* ---------- CACHE CHECK ---------- */
 
@@ -218,7 +217,7 @@ export const getBannersByIsActiveService = async ({
       throw err;
     }
 
-    const cacheKey = `BANNERS:ACTIVE:${isActive}:${page}:${limit}`;
+    const cacheKey = `BANNER:ACTIVE:${isActive}:${page}:${limit}`;
 
     /* ---------- CACHE ---------- */
 
@@ -379,6 +378,10 @@ export const updateBannerService = async ({
     }
 
     await banner.save();
+    
+    /* ---------- CLEAR CACHE ---------- */
+
+    await clearBannerCache();
 
     /* ---------- AUDIT ---------- */
 
@@ -428,9 +431,6 @@ export const updateBannerService = async ({
       },
     });
 
-    /* ---------- CLEAR CACHE ---------- */
-
-    await clearBannerCache();
 
     return banner;
   } catch (error) {
@@ -515,6 +515,8 @@ export const updateBannerDisplayOrderService =
       banner.displayOrder = displayOrder;
 
       await banner.save();
+       /* ---------- CLEAR CACHE ---------- */
+      await clearBannerCache();
 
       /* ---------- AUDIT ---------- */
 
@@ -557,10 +559,6 @@ export const updateBannerDisplayOrderService =
           updatedBy: employee.email,
         },
       });
-
-      /* ---------- CLEAR CACHE ---------- */
-
-      await clearBannerCache();
 
       return banner;
     } catch (error) {
@@ -693,7 +691,7 @@ export const getProductsByBannerService = async ({
        CACHE KEY
     ===================================================== */
 
-    const cacheKey = `BANNER_PRODUCTS:${bannerId}:${page}:${limit}`;
+    const cacheKey = `BANNER:${bannerId}:${page}:${limit}`;
 
     /* =====================================================
        CACHE CHECK

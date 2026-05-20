@@ -3,7 +3,50 @@ import { v6 as uuidv6 } from "uuid";
 import { uploadToS3, deleteFromS3 } from "./awsS3.service.js";
 import { PermissionAudit } from "../models/manage/permissionaudit.model.js";
 import { sendNotification } from "./notification.service.js";
+import { redis as redisClient } from "../config/redis.config.js";
 const ALLOWED_CATEGORIES = ["Abutment-Level", "General", "Screw-Retained"];
+
+const CACHE_TTL = 60 * 60;
+/* =========================================================
+   CACHE HELPERS
+========================================================= */
+
+const clearBrandCache = async () => {
+  try {
+    const keys = await redisClient.keys("BRAND*");
+
+    if (keys.length > 0) {
+      await redisClient.del(...keys);
+    }
+  } catch (error) {
+    console.log("REDIS BRAND CACHE CLEAR ERROR:", error.message);
+  }
+};
+
+const setCache = async (key, data) => {
+  try {
+    await redisClient.set(key, JSON.stringify(data), {
+      ex: CACHE_TTL,
+    });
+  } catch (error) {
+    console.log("REDIS SET CACHE ERROR:", error.message);
+  }
+};
+
+const getCache = async (key) => {
+  try {
+    const cachedData = await redisClient.get(key);
+
+    if (!cachedData) return null;
+
+    return JSON.parse(cachedData);
+  } catch (error) {
+    console.log("REDIS GET CACHE ERROR:", error.message);
+
+    return null;
+  }
+};
+
 
 export const createBrandService = async ({
   brandName,
