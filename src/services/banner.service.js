@@ -1,31 +1,89 @@
 import { v6 as uuidv6 } from "uuid";
+
 import Banner from "../models/manage/banner.model.js";
 import Category from "../models/manage/category.model.js";
 import Brand from "../models/manage/brand.model.js";
 import Product from "../models/manage/product.model.js";
+
 import { PermissionAudit } from "../models/manage/permissionaudit.model.js";
-import { uploadToS3, deleteFromS3 } from "./awsS3.service.js";
+
+import {
+  uploadToS3,
+  deleteFromS3,
+} from "./awsS3.service.js";
+
 import { sendNotification } from "./notification.service.js";
+
 import { redis as redisClient } from "../config/redis.config.js";
+
+/* =========================================================
+   CACHE CONFIG
+========================================================= */
+
+const CACHE_TTL = 300;
 
 /* =========================================================
    CACHE HELPERS
 ========================================================= */
 
-const clearBannerCache = async () => {
+const getCache = async (key) => {
   try {
-    const keys = await redisClient.keys("BANNER*");
+    const cachedData = await redisClient.get(key);
 
-    if (keys.length > 0) {
-      await redisClient.del(keys);
-    }
-  } catch (err) {
-    console.log("REDIS CACHE CLEAR ERROR:", err.message);
+    if (!cachedData) return null;
+
+    return JSON.parse(cachedData);
+  } catch (error) {
+    console.log(
+      "REDIS GET CACHE ERROR:",
+      error.message
+    );
+
+    return null;
   }
 };
+
+const setCache = async (key, data) => {
+  try {
+    await redisClient.set(
+      key,
+      JSON.stringify(data),
+      {
+        ex: CACHE_TTL,
+      }
+    );
+  } catch (error) {
+    console.log(
+      "REDIS SET CACHE ERROR:",
+      error.message
+    );
+  }
+};
+
+const clearBannerCache = async () => {
+  try {
+    const keys = await redisClient.keys("BANNER:*");
+
+    if (keys.length > 0) {
+      await redisClient.del(...keys);
+
+      console.log(
+        "BANNER CACHE CLEARED:",
+        keys
+      );
+    }
+  } catch (error) {
+    console.log(
+      "REDIS CACHE CLEAR ERROR:",
+      error.message
+    );
+  }
+};
+
 /* =========================================================
    CREATE BANNER
 ========================================================= */
+
 export const createBannerService = async ({
   filterBy,
   filterId,
@@ -36,23 +94,33 @@ export const createBannerService = async ({
   permission,
 }) => {
   let imageUpload;
+
   try {
     /* ---------- VALIDATION ---------- */
+
     if (!file) {
-      const err = new Error("Banner image is required");
+      const err = new Error(
+        "Banner image is required"
+      );
+
       err.statusCode = 400;
+
       throw err;
     }
 
     if (!displayOrder || displayOrder < 1) {
-      const err = new Error("Valid displayOrder required");
+      const err = new Error(
+        "Valid displayOrder required"
+      );
+
       err.statusCode = 400;
+
       throw err;
     }
 
     /* ---------- DISPLAY ORDER CHECK ---------- */
 
-    if (isActive === true) {
+    if (isActive) {
       const exists = await Banner.findOne({
         displayOrder,
         isActive: true,
@@ -68,19 +136,32 @@ export const createBannerService = async ({
         throw err;
       }
     }
+
     /* ---------- UPLOAD IMAGE ---------- */
-    imageUpload = await uploadToS3(file, "banners");
+
+    imageUpload = await uploadToS3(
+      file,
+      "banners"
+    );
+
     /* ---------- CREATE BANNER ---------- */
+
     const banner = await Banner.create({
       bannerId: uuidv6(),
+
       imageUrl: imageUpload.url,
+
       filterBy,
       filterId,
-      isActive, 
+
+      isActive,
+
       displayOrder,
     });
-// Clear Banner CachE
-      await clearBannerCache();
+
+    /* ---------- CLEAR CACHE ---------- */
+
+    await clearBannerCache();
 
     /* ---------- AUDIT ---------- */
 
@@ -88,13 +169,15 @@ export const createBannerService = async ({
       permissionAuditId: uuidv6(),
 
       actionBy: employee._id,
+
       actionByEmail: employee.email,
 
       actionFor: banner._id,
 
       action: `Banner Created | Banner:${banner.bannerId} | Filter:${banner.filterBy}:${banner.filterId} | Order:${banner.displayOrder}`,
 
-      permission: permission || "create_banner",
+      permission:
+        permission || "create_banner",
 
       actionType: "Create",
     });
@@ -103,28 +186,44 @@ export const createBannerService = async ({
 
     await sendNotification({
       sender: employee._id,
+
       permission: "banner.listing.read",
+
       title: "New Banner Created",
+
       message: `Banner created successfully at display order ${displayOrder}`,
+
       type: "BANNER_CREATED",
+
       entityId: banner._id,
+
       entityModel: "Banner",
+
       metadata: {
         bannerId: banner.bannerId,
+
         filterBy,
+
         filterId,
+
         displayOrder,
+
         isActive,
+
         imageUrl: banner.imageUrl,
+
         createdBy: employee.email,
       },
     });
+
     return banner;
   } catch (error) {
     /* ---------- ROLLBACK ---------- */
+
     if (imageUpload?.url) {
       await deleteFromS3(imageUpload.url);
     }
+
     throw error;
   }
 };
@@ -138,9 +237,19 @@ export const getAllBannersService = async ({
   limit = 10,
 }) => {
   try {
-
     page = Number(page);
+
     limit = Number(limit);
+
+    if (page < 1 || limit < 1) {
+      const err = new Error(
+        "Invalid pagination values"
+      );
+
+      err.statusCode = 400;
+
+      throw err;
+    }
 
     const skip = (page - 1) * limit;
 
@@ -148,47 +257,62 @@ export const getAllBannersService = async ({
 
     /* ---------- CACHE CHECK ---------- */
 
-    const cached = await redisClient.get(cacheKey);
+    const cached = await getCache(cacheKey);
 
     if (cached) {
+      console.log(
+        "CACHE HIT:",
+        cacheKey
+      );
+
       return cached;
     }
 
     /* ---------- FETCH ---------- */
 
-    const [banners, totalItems] = await Promise.all([
+    const [banners, totalItems] =
+      await Promise.all([
+        Banner.find({})
+          .sort({ displayOrder: 1 })
+          .skip(skip)
+          .limit(limit)
+          .lean(),
 
-      Banner.find({})
-        .sort({ displayOrder: 1 })
-        .skip(skip)
-        .limit(limit)
-        .lean(),
+        Banner.countDocuments({}),
+      ]);
 
-      Banner.countDocuments({}),
+    const totalPages = Math.ceil(
+      totalItems / limit
+    );
 
-    ]);
-
-    const totalPages = Math.ceil(totalItems / limit);
     const result = {
       pagination: {
         totalItems,
+
         totalPages,
+
         currentPage: page,
-        nextPage: page < totalPages ? page + 1 : null,
-        prevPage: page > 1 ? page - 1 : null,
+
+        nextPage:
+          page < totalPages
+            ? page + 1
+            : null,
+
+        prevPage:
+          page > 1
+            ? page - 1
+            : null,
+
         limit,
       },
+
       banners,
     };
 
     /* ---------- STORE CACHE ---------- */
-    await redisClient.set(
-      cacheKey,
-      result,
-      {
-        ex: 300,
-      }
-    );
+
+    await setCache(cacheKey, result);
+
     return result;
   } catch (error) {
     throw error;
@@ -199,77 +323,111 @@ export const getAllBannersService = async ({
    GET BANNERS BY ACTIVE STATUS
 ========================================================= */
 
-export const getBannersByIsActiveService = async ({
-  isActive,
-  page = 1,
-  limit = 10,
-}) => {
-  try {
+export const getBannersByIsActiveService =
+  async ({
+    isActive,
+    page = 1,
+    limit = 10,
+  }) => {
+    try {
+      page = Number(page);
 
-    page = Number(page);
-    limit = Number(limit);
+      limit = Number(limit);
 
-    const skip = (page - 1) * limit;
+      if (page < 1 || limit < 1) {
+        const err = new Error(
+          "Invalid pagination values"
+        );
 
-    if (typeof isActive !== "boolean") {
-      const err = new Error("isActive must be boolean");
-      err.statusCode = 400;
-      throw err;
-    }
+        err.statusCode = 400;
 
-    const cacheKey = `BANNER:ACTIVE:${isActive}:${page}:${limit}`;
-
-    /* ---------- CACHE ---------- */
-
-    const cached = await redisClient.get(cacheKey);
-
-    if (cached) {
-      return cached;
-    }
-
-    const filter = { isActive };
-
-    /* ---------- FETCH ---------- */
-
-    const [banners, totalItems] = await Promise.all([
-
-      Banner.find(filter)
-        .sort({ displayOrder: 1 })
-        .skip(skip)
-        .limit(limit)
-        .lean(),
-
-      Banner.countDocuments(filter),
-
-    ]);
-
-    const totalPages = Math.ceil(totalItems / limit);
-
-    const result = {
-      pagination: {
-        totalItems,
-        totalPages,
-        currentPage: page,
-        nextPage: page < totalPages ? page + 1 : null,
-        prevPage: page > 1 ? page - 1 : null,
-        limit,
-      },
-       banners,
-    };
-
-    /* ---------- STORE CACHE ---------- */
-    await redisClient.set(
-      cacheKey,
-      result,
-      {
-        ex: 300,
+        throw err;
       }
-    );
-    return result;
-  } catch (error) {
-    throw error;
-  }
-};
+
+      if (typeof isActive !== "boolean") {
+        const err = new Error(
+          "isActive must be boolean"
+        );
+
+        err.statusCode = 400;
+
+        throw err;
+      }
+
+      const skip = (page - 1) * limit;
+
+      const cacheKey = `BANNER:ACTIVE:${isActive}:${page}:${limit}`;
+
+      /* ---------- CACHE ---------- */
+
+      const cached =
+        await getCache(cacheKey);
+
+      if (cached) {
+        console.log(
+          "CACHE HIT:",
+          cacheKey
+        );
+
+        return cached;
+      }
+
+      const filter = {
+        isActive,
+      };
+
+      /* ---------- FETCH ---------- */
+
+      const [banners, totalItems] =
+        await Promise.all([
+          Banner.find(filter)
+            .sort({
+              displayOrder: 1,
+            })
+            .skip(skip)
+            .limit(limit)
+            .lean(),
+
+          Banner.countDocuments(filter),
+        ]);
+
+      const totalPages = Math.ceil(
+        totalItems / limit
+      );
+
+      const result = {
+        pagination: {
+          totalItems,
+
+          totalPages,
+
+          currentPage: page,
+
+          nextPage:
+            page < totalPages
+              ? page + 1
+              : null,
+
+          prevPage:
+            page > 1
+              ? page - 1
+              : null,
+
+          limit,
+        },
+
+        banners,
+      };
+
+      /* ---------- STORE CACHE ---------- */
+
+      await setCache(cacheKey, result);
+
+      return result;
+    } catch (error) {
+      throw error;
+    }
+  };
 
 /* =========================================================
    UPDATE BANNER
@@ -288,8 +446,12 @@ export const updateBannerService = async ({
   let newImageUpload;
 
   try {
+    /* ---------- VALIDATION ---------- */
+
     if (!bannerId) {
-      const err = new Error("BannerId is required");
+      const err = new Error(
+        "BannerId is required"
+      );
 
       err.statusCode = 400;
 
@@ -298,10 +460,14 @@ export const updateBannerService = async ({
 
     /* ---------- FIND BANNER ---------- */
 
-    const banner = await Banner.findOne({ bannerId });
+    const banner = await Banner.findOne({
+      bannerId,
+    });
 
     if (!banner) {
-      const err = new Error("Banner not found");
+      const err = new Error(
+        "Banner not found"
+      );
 
       err.statusCode = 404;
 
@@ -321,13 +487,16 @@ export const updateBannerService = async ({
       displayOrder !== undefined &&
       shouldBeActive
     ) {
-      const conflict = await Banner.findOne({
-        bannerId: { $ne: bannerId },
+      const conflict =
+        await Banner.findOne({
+          bannerId: {
+            $ne: bannerId,
+          },
 
-        displayOrder,
+          displayOrder,
 
-        isActive: true,
-      });
+          isActive: true,
+        });
 
       if (conflict) {
         const err = new Error(
@@ -343,14 +512,17 @@ export const updateBannerService = async ({
     /* ---------- IMAGE UPDATE ---------- */
 
     if (file) {
-      const oldImage = banner.imageUrl;
+      const oldImage =
+        banner.imageUrl;
 
-      newImageUpload = await uploadToS3(
-        file,
-        "banners"
-      );
+      newImageUpload =
+        await uploadToS3(
+          file,
+          "banners"
+        );
 
-      banner.imageUrl = newImageUpload.url;
+      banner.imageUrl =
+        newImageUpload.url;
 
       await banner.save();
 
@@ -369,16 +541,21 @@ export const updateBannerService = async ({
       banner.filterId = filterId;
     }
 
-    if (displayOrder !== undefined) {
-      banner.displayOrder = displayOrder;
+    if (
+      displayOrder !== undefined
+    ) {
+      banner.displayOrder =
+        displayOrder;
     }
 
-    if (typeof isActive === "boolean") {
+    if (
+      typeof isActive === "boolean"
+    ) {
       banner.isActive = isActive;
     }
 
     await banner.save();
-    
+
     /* ---------- CLEAR CACHE ---------- */
 
     await clearBannerCache();
@@ -389,13 +566,15 @@ export const updateBannerService = async ({
       permissionAuditId: uuidv6(),
 
       actionBy: employee._id,
+
       actionByEmail: employee.email,
 
       actionFor: banner._id,
 
       action: `Banner Updated | Banner:${banner.bannerId} | Filter:${banner.filterBy}:${banner.filterId} | Order:${banner.displayOrder}`,
 
-      permission: permission || "update_banner",
+      permission:
+        permission || "update_banner",
 
       actionType: "Update",
     });
@@ -414,30 +593,37 @@ export const updateBannerService = async ({
       type: "BANNER_UPDATED",
 
       entityId: banner._id,
+
       entityModel: "Banner",
 
       metadata: {
         bannerId: banner.bannerId,
 
-        filterBy: banner.filterBy,
+        filterBy:
+          banner.filterBy,
 
-        filterId: banner.filterId,
+        filterId:
+          banner.filterId,
 
-        displayOrder: banner.displayOrder,
+        displayOrder:
+          banner.displayOrder,
 
-        isActive: banner.isActive,
+        isActive:
+          banner.isActive,
 
-        updatedBy: employee.email,
+        updatedBy:
+          employee.email,
       },
     });
-
 
     return banner;
   } catch (error) {
     /* ---------- ROLLBACK ---------- */
 
     if (newImageUpload?.url) {
-      await deleteFromS3(newImageUpload.url);
+      await deleteFromS3(
+        newImageUpload.url
+      );
     }
 
     throw error;
@@ -457,14 +643,19 @@ export const updateBannerDisplayOrderService =
   }) => {
     try {
       if (!bannerId) {
-        const err = new Error("BannerId is required");
+        const err = new Error(
+          "BannerId is required"
+        );
 
         err.statusCode = 400;
 
         throw err;
       }
 
-      if (!displayOrder || displayOrder < 1) {
+      if (
+        !displayOrder ||
+        displayOrder < 1
+      ) {
         const err = new Error(
           "displayOrder must be >= 1"
         );
@@ -476,12 +667,15 @@ export const updateBannerDisplayOrderService =
 
       /* ---------- FIND ---------- */
 
-      const banner = await Banner.findOne({
-        bannerId,
-      });
+      const banner =
+        await Banner.findOne({
+          bannerId,
+        });
 
       if (!banner) {
-        const err = new Error("Banner not found");
+        const err = new Error(
+          "Banner not found"
+        );
 
         err.statusCode = 404;
 
@@ -491,13 +685,16 @@ export const updateBannerDisplayOrderService =
       /* ---------- CONFLICT ---------- */
 
       if (banner.isActive) {
-        const conflict = await Banner.findOne({
-          bannerId: { $ne: bannerId },
+        const conflict =
+          await Banner.findOne({
+            bannerId: {
+              $ne: bannerId,
+            },
 
-          displayOrder,
+            displayOrder,
 
-          isActive: true,
-        });
+            isActive: true,
+          });
 
         if (conflict) {
           const err = new Error(
@@ -512,25 +709,33 @@ export const updateBannerDisplayOrderService =
 
       /* ---------- UPDATE ---------- */
 
-      banner.displayOrder = displayOrder;
+      banner.displayOrder =
+        displayOrder;
 
       await banner.save();
-       /* ---------- CLEAR CACHE ---------- */
+
+      /* ---------- CLEAR CACHE ---------- */
+
       await clearBannerCache();
 
       /* ---------- AUDIT ---------- */
 
       await PermissionAudit.create({
-        permissionAuditId: uuidv6(),
+        permissionAuditId:
+          uuidv6(),
 
         actionBy: employee._id,
-        actionByEmail: employee.email,
+
+        actionByEmail:
+          employee.email,
 
         actionFor: banner._id,
 
         action: `Banner Display Order Updated | Banner:${banner.bannerId} | Order:${banner.displayOrder}`,
 
-        permission: permission || "update_banner",
+        permission:
+          permission ||
+          "update_banner",
 
         actionType: "Update",
       });
@@ -540,23 +745,29 @@ export const updateBannerDisplayOrderService =
       await sendNotification({
         sender: employee._id,
 
-        permission: "banner.listing.read",
+        permission:
+          "banner.listing.read",
 
-        title: "Banner Display Order Updated",
+        title:
+          "Banner Display Order Updated",
 
         message: `Banner order changed to ${banner.displayOrder}`,
 
         type: "BANNER_DISPLAY_ORDER_UPDATED",
 
         entityId: banner._id,
+
         entityModel: "Banner",
 
         metadata: {
-          bannerId: banner.bannerId,
+          bannerId:
+            banner.bannerId,
 
-          displayOrder: banner.displayOrder,
+          displayOrder:
+            banner.displayOrder,
 
-          updatedBy: employee.email,
+          updatedBy:
+            employee.email,
         },
       });
 
@@ -577,7 +788,9 @@ export const deleteBannerService = async ({
 }) => {
   try {
     if (!bannerId) {
-      const err = new Error("BannerId is required");
+      const err = new Error(
+        "BannerId is required"
+      );
 
       err.statusCode = 400;
 
@@ -586,10 +799,14 @@ export const deleteBannerService = async ({
 
     /* ---------- FIND ---------- */
 
-    const banner = await Banner.findOne({ bannerId });
+    const banner = await Banner.findOne({
+      bannerId,
+    });
 
     if (!banner) {
-      const err = new Error("Banner not found");
+      const err = new Error(
+        "Banner not found"
+      );
 
       err.statusCode = 404;
 
@@ -599,26 +816,39 @@ export const deleteBannerService = async ({
     /* ---------- DELETE IMAGE ---------- */
 
     if (banner.imageUrl) {
-      await deleteFromS3(banner.imageUrl);
+      await deleteFromS3(
+        banner.imageUrl
+      );
     }
 
     /* ---------- DELETE ---------- */
 
-    await Banner.findByIdAndDelete(banner._id);
+    await Banner.findByIdAndDelete(
+      banner._id
+    );
+
+    /* ---------- CLEAR CACHE ---------- */
+
+    await clearBannerCache();
 
     /* ---------- AUDIT ---------- */
 
     await PermissionAudit.create({
-      permissionAuditId: uuidv6(),
+      permissionAuditId:
+        uuidv6(),
 
       actionBy: employee._id,
-      actionByEmail: employee.email,
+
+      actionByEmail:
+        employee.email,
 
       actionFor: banner._id,
 
       action: `Banner Deleted | Banner:${banner.bannerId} | Filter:${banner.filterBy}:${banner.filterId}`,
 
-      permission: permission || "delete_banner",
+      permission:
+        permission ||
+        "delete_banner",
 
       actionType: "Delete",
     });
@@ -628,7 +858,8 @@ export const deleteBannerService = async ({
     await sendNotification({
       sender: employee._id,
 
-      permission: "banner.listing.read",
+      permission:
+        "banner.listing.read",
 
       title: "Banner Deleted",
 
@@ -637,188 +868,255 @@ export const deleteBannerService = async ({
       type: "BANNER_DELETED",
 
       entityId: banner._id,
+
       entityModel: "Banner",
 
       metadata: {
-        bannerId: banner.bannerId,
+        bannerId:
+          banner.bannerId,
 
-        filterBy: banner.filterBy,
+        filterBy:
+          banner.filterBy,
 
-        filterId: banner.filterId,
+        filterId:
+          banner.filterId,
 
-        deletedBy: employee.email,
+        deletedBy:
+          employee.email,
       },
     });
 
-    /* ---------- CLEAR CACHE ---------- */
-    await clearBannerCache();
     return true;
   } catch (error) {
     throw error;
   }
 };
 
+/* =========================================================
+   GET PRODUCTS BY BANNER
+========================================================= */
 
-export const getProductsByBannerService = async ({
-  bannerId,
-  page = 1,
-  limit = 10,
-}) => {
-  try {
+export const getProductsByBannerService =
+  async ({
+    bannerId,
+    page = 1,
+    limit = 10,
+  }) => {
+    try {
+      /* ---------- VALIDATION ---------- */
 
-    /* =====================================================
-       VALIDATION
-    ===================================================== */
+      if (!bannerId) {
+        const err = new Error(
+          "bannerId is required"
+        );
 
-    if (!bannerId) {
-      const err = new Error("bannerId is required");
-      err.statusCode = 400;
-      throw err;
-    }
+        err.statusCode = 400;
 
-    page = Number(page);
-    limit = Number(limit);
-
-    if (page < 1 || limit < 1) {
-      const err = new Error("Invalid pagination values");
-      err.statusCode = 400;
-      throw err;
-    }
-
-    const skip = (page - 1) * limit;
-
-    /* =====================================================
-       CACHE KEY
-    ===================================================== */
-
-    const cacheKey = `BANNER:${bannerId}:${page}:${limit}`;
-
-    /* =====================================================
-       CACHE CHECK
-    ===================================================== */
-
-    const cachedData = await redisClient.get(cacheKey);
-
-    if (cachedData) {
-      return cachedData;
-    }
-
-    /* =====================================================
-       FIND BANNER
-    ===================================================== */
-
-    const banner = await Banner.findOne({
-      bannerId,
-      isActive: true,
-    }).lean();
-
-    if (!banner) {
-      const err = new Error("Banner not found or inactive");
-      err.statusCode = 404;
-      throw err;
-    }
-
-    /* =====================================================
-       FILTER
-    ===================================================== */
-
-    const filter = {
-      status: "active",
-    };
-
-    /* CATEGORY */
-
-    if (banner.filterBy === "category") {
-
-      const category = await Category.findOne({
-        categoryId: banner.filterId,
-      })
-      .select("_id")
-      .lean();
-
-      if (!category) {
-        const err = new Error("Category not found");
-        err.statusCode = 404;
         throw err;
       }
 
-      filter.category = category._id;
-    }
+      page = Number(page);
 
-    /* BRAND */
+      limit = Number(limit);
 
-    else if (banner.filterBy === "brand") {
+      if (
+        page < 1 ||
+        limit < 1
+      ) {
+        const err = new Error(
+          "Invalid pagination values"
+        );
 
-      const brand = await Brand.findOne({
-        brandId: banner.filterId,
-      })
-      .select("_id")
-      .lean();
+        err.statusCode = 400;
 
-      if (!brand) {
-        const err = new Error("Brand not found");
-        err.statusCode = 404;
         throw err;
       }
 
-      filter.brand = brand._id;
-    }
+      const skip =
+        (page - 1) * limit;
 
-    /* =====================================================
-       FETCH PRODUCTS
-    ===================================================== */
+      /* ---------- CACHE KEY ---------- */
 
-    const [products, totalItems] = await Promise.all([
+      const cacheKey = `BANNER:PRODUCTS:${bannerId}:${page}:${limit}`;
 
-      Product.find(filter)
-        .populate("category", "categoryId name")
-        .populate("brand", "brandId brandName logoUrl")
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .lean(),
+      /* ---------- CACHE CHECK ---------- */
 
-      Product.countDocuments(filter),
+      const cachedData =
+        await getCache(cacheKey);
 
-    ]);
+      if (cachedData) {
+        console.log(
+          "CACHE HIT:",
+          cacheKey
+        );
 
-    const totalPages = Math.ceil(totalItems / limit);
+        return cachedData;
+      }
 
-    /* =====================================================
-       RESPONSE
-    ===================================================== */
+      /* ---------- FIND BANNER ---------- */
 
-    const result = {
-      pagination: {
+      const banner =
+        await Banner.findOne({
+          bannerId,
+
+          isActive: true,
+        }).lean();
+
+      if (!banner) {
+        const err = new Error(
+          "Banner not found or inactive"
+        );
+
+        err.statusCode = 404;
+
+        throw err;
+      }
+
+      /* ---------- FILTER ---------- */
+
+      const filter = {
+        status: "active",
+      };
+
+      /* ---------- CATEGORY ---------- */
+
+      if (
+        banner.filterBy ===
+        "category"
+      ) {
+        const category =
+          await Category.findOne({
+            categoryId:
+              banner.filterId,
+          })
+            .select("_id")
+            .lean();
+
+        if (!category) {
+          const err = new Error(
+            "Category not found"
+          );
+
+          err.statusCode = 404;
+
+          throw err;
+        }
+
+        filter.category =
+          category._id;
+      }
+
+      /* ---------- BRAND ---------- */
+
+      else if (
+        banner.filterBy ===
+        "brand"
+      ) {
+        const brand =
+          await Brand.findOne({
+            brandId:
+              banner.filterId,
+          })
+            .select("_id")
+            .lean();
+
+        if (!brand) {
+          const err = new Error(
+            "Brand not found"
+          );
+
+          err.statusCode = 404;
+
+          throw err;
+        }
+
+        filter.brand = brand._id;
+      }
+
+      /* ---------- FETCH PRODUCTS ---------- */
+
+      const [
+        products,
         totalItems,
-        totalPages,
-        currentPage: page,
-        nextPage: page < totalPages ? page + 1 : null,
-        prevPage: page > 1 ? page - 1 : null,
-        limit,
-      }, 
-      banner: {
-        bannerId: banner.bannerId,
-        filterBy: banner.filterBy,
-        filterId: banner.filterId,
-        displayOrder: banner.displayOrder,
-        imageUrl: banner.imageUrl,
-      },
-      products,
-    };
+      ] = await Promise.all([
+        Product.find(filter)
+          .populate(
+            "category",
+            "categoryId name"
+          )
+          .populate(
+            "brand",
+            "brandId brandName logoUrl"
+          )
+          .sort({
+            createdAt: -1,
+          })
+          .skip(skip)
+          .limit(limit)
+          .lean(),
 
-    /* =====================================================
-       STORE CACHE
-    ===================================================== */
-    await redisClient.set(
-      cacheKey,
-      result,
-      {
-        ex: 300,
-      }
-    );
-    return result;
-  } catch (error) {
-    throw error;
-  }
-};
+        Product.countDocuments(
+          filter
+        ),
+      ]);
+
+      const totalPages =
+        Math.ceil(
+          totalItems / limit
+        );
+
+      /* ---------- RESPONSE ---------- */
+
+      const result = {
+        pagination: {
+          totalItems,
+
+          totalPages,
+
+          currentPage: page,
+
+          nextPage:
+            page < totalPages
+              ? page + 1
+              : null,
+
+          prevPage:
+            page > 1
+              ? page - 1
+              : null,
+
+          limit,
+        },
+
+        banner: {
+          bannerId:
+            banner.bannerId,
+
+          filterBy:
+            banner.filterBy,
+
+          filterId:
+            banner.filterId,
+
+          displayOrder:
+            banner.displayOrder,
+
+          imageUrl:
+            banner.imageUrl,
+        },
+
+        products,
+      };
+
+      /* ---------- STORE CACHE ---------- */
+
+      await setCache(
+        cacheKey,
+        result
+      );
+
+      return result;
+    } catch (error) {
+      throw error;
+    }
+  };
