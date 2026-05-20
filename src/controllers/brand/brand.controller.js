@@ -4,7 +4,7 @@ import { sendSuccess } from "../../helpers/response.helper.js";
 import Employee from "../../models/manage/employee.model.js";
 import { createBrandService, deleteAllBrandsService, deleteBrandService, getAllBrandsService, getBrandByIdService, updateBrandService } from "../../services/brand.service.js";
 import { createBrandValidator, updateBrandValidator } from "./ brand.validator.js";
-import { redis } from "../../config/redis.config.js";
+
 
 /**
  * @function createBrand
@@ -198,24 +198,7 @@ export const updateBrand = async (req, res) => {
  */
 export const getAllBrands = async (req, res) => {
   try {
-
-        /* ---------- CHECK CACHE ---------- */
-    const cachedBrands = await redis.get("all_brands");
-
-    if (cachedBrands) {
-      return sendSuccess(
-        res,
-        cachedBrands,
-        200,
-        "Brands fetched successfully (cache)"
-      );
-    }
     const result = await getAllBrandsService();
-        /* ---------- STORE CACHE ---------- */
-    await redis.set("all_brands", JSON.stringify(result), {
-      ex: 3600 //for 1 hour
-    });
-
     return sendSuccess(
       res,
       result,
