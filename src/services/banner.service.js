@@ -1,14 +1,10 @@
 import { v6 as uuidv6 } from "uuid";
-
 import Banner from "../models/manage/banner.model.js";
 import Category from "../models/manage/category.model.js";
 import Brand from "../models/manage/brand.model.js";
 import Product from "../models/manage/product.model.js";
-
 import { PermissionAudit } from "../models/manage/permissionaudit.model.js";
-
 import { uploadToS3, deleteFromS3 } from "./awsS3.service.js";
-
 import { sendNotification } from "./notification.service.js";
 import { redis as redisClient } from "../config/redis.config.js";
 
@@ -40,10 +36,8 @@ export const createBannerService = async ({
   permission,
 }) => {
   let imageUpload;
-
   try {
     /* ---------- VALIDATION ---------- */
-
     if (!file) {
       const err = new Error("Banner image is required");
       err.statusCode = 400;
@@ -74,23 +68,15 @@ export const createBannerService = async ({
         throw err;
       }
     }
-
     /* ---------- UPLOAD IMAGE ---------- */
-
     imageUpload = await uploadToS3(file, "banners");
-
     /* ---------- CREATE BANNER ---------- */
-
     const banner = await Banner.create({
       bannerId: uuidv6(),
-
       imageUrl: imageUpload.url,
-
       filterBy,
       filterId,
-
-      isActive,
-
+      isActive, 
       displayOrder,
     });
 
@@ -115,18 +101,12 @@ export const createBannerService = async ({
 
     await sendNotification({
       sender: employee._id,
-
       permission: "banner.listing.read",
-
       title: "New Banner Created",
-
       message: `Banner created successfully at display order ${displayOrder}`,
-
       type: "BANNER_CREATED",
-
       entityId: banner._id,
       entityModel: "Banner",
-
       metadata: {
         bannerId: banner.bannerId,
         filterBy,
@@ -139,17 +119,13 @@ export const createBannerService = async ({
     });
 
     /* ---------- CLEAR CACHE ---------- */
-
     await clearBannerCache();
-
     return banner;
   } catch (error) {
     /* ---------- ROLLBACK ---------- */
-
     if (imageUpload?.url) {
       await deleteFromS3(imageUpload.url);
     }
-
     throw error;
   }
 };
@@ -159,11 +135,16 @@ export const createBannerService = async ({
 ========================================================= */
 
 export const getAllBannersService = async ({
-  page,
-  limit,
-  skip,
+  page = 1,
+  limit = 10,
 }) => {
   try {
+
+    page = Number(page);
+    limit = Number(limit);
+
+    const skip = (page - 1) * limit;
+
     const cacheKey = `BANNERS:ALL:${page}:${limit}`;
 
     /* ---------- CACHE CHECK ---------- */
@@ -171,42 +152,44 @@ export const getAllBannersService = async ({
     const cached = await redisClient.get(cacheKey);
 
     if (cached) {
-      return JSON.parse(cached);
+      return cached;
     }
 
     /* ---------- FETCH ---------- */
 
-    const banners = await Banner.find({})
-      .sort({ displayOrder: 1 })
-      .skip(skip)
-      .limit(limit)
-      .lean();
+    const [banners, totalItems] = await Promise.all([
 
-    const totalBanners = await Banner.countDocuments({});
+      Banner.find({})
+        .sort({ displayOrder: 1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
 
+      Banner.countDocuments({}),
+
+    ]);
+
+    const totalPages = Math.ceil(totalItems / limit);
     const result = {
-      banners,
-
       pagination: {
+        totalItems,
+        totalPages,
         currentPage: page,
-
-        totalPages: Math.ceil(totalBanners / limit),
-
-        totalBanners,
-
+        nextPage: page < totalPages ? page + 1 : null,
+        prevPage: page > 1 ? page - 1 : null,
         limit,
       },
+      banners,
     };
 
     /* ---------- STORE CACHE ---------- */
-
     await redisClient.set(
       cacheKey,
-      JSON.stringify(result),
-      "EX",
-      300
+      result,
+      {
+        ex: 300,
+      }
     );
-
     return result;
   } catch (error) {
     throw error;
@@ -219,16 +202,19 @@ export const getAllBannersService = async ({
 
 export const getBannersByIsActiveService = async ({
   isActive,
-  page,
-  limit,
-  skip,
+  page = 1,
+  limit = 10,
 }) => {
   try {
+
+    page = Number(page);
+    limit = Number(limit);
+
+    const skip = (page - 1) * limit;
+
     if (typeof isActive !== "boolean") {
       const err = new Error("isActive must be boolean");
-
       err.statusCode = 400;
-
       throw err;
     }
 
@@ -239,44 +225,47 @@ export const getBannersByIsActiveService = async ({
     const cached = await redisClient.get(cacheKey);
 
     if (cached) {
-      return JSON.parse(cached);
+      return cached;
     }
-
-    /* ---------- FETCH ---------- */
 
     const filter = { isActive };
 
-    const banners = await Banner.find(filter)
-      .sort({ displayOrder: 1 })
-      .skip(skip)
-      .limit(limit)
-      .lean();
+    /* ---------- FETCH ---------- */
 
-    const totalBanners = await Banner.countDocuments(filter);
+    const [banners, totalItems] = await Promise.all([
+
+      Banner.find(filter)
+        .sort({ displayOrder: 1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+
+      Banner.countDocuments(filter),
+
+    ]);
+
+    const totalPages = Math.ceil(totalItems / limit);
 
     const result = {
-      banners,
-
       pagination: {
+        totalItems,
+        totalPages,
         currentPage: page,
-
-        totalPages: Math.ceil(totalBanners / limit),
-
-        totalBanners,
-
+        nextPage: page < totalPages ? page + 1 : null,
+        prevPage: page > 1 ? page - 1 : null,
         limit,
       },
+       banners,
     };
 
-    /* ---------- CACHE STORE ---------- */
-
+    /* ---------- STORE CACHE ---------- */
     await redisClient.set(
       cacheKey,
-      JSON.stringify(result),
-      "EX",
-      300
+      result,
+      {
+        ex: 300,
+      }
     );
-
     return result;
   } catch (error) {
     throw error;
@@ -664,9 +653,7 @@ export const deleteBannerService = async ({
     });
 
     /* ---------- CLEAR CACHE ---------- */
-
     await clearBannerCache();
-
     return true;
   } catch (error) {
     throw error;
@@ -674,12 +661,10 @@ export const deleteBannerService = async ({
 };
 
 
-
 export const getProductsByBannerService = async ({
   bannerId,
   page = 1,
   limit = 10,
-  skip = 0,
 }) => {
   try {
 
@@ -702,6 +687,8 @@ export const getProductsByBannerService = async ({
       throw err;
     }
 
+    const skip = (page - 1) * limit;
+
     /* =====================================================
        CACHE KEY
     ===================================================== */
@@ -709,13 +696,13 @@ export const getProductsByBannerService = async ({
     const cacheKey = `BANNER_PRODUCTS:${bannerId}:${page}:${limit}`;
 
     /* =====================================================
-       CHECK REDIS CACHE
+       CACHE CHECK
     ===================================================== */
 
     const cachedData = await redisClient.get(cacheKey);
 
     if (cachedData) {
-      return JSON.parse(cachedData);
+      return cachedData;
     }
 
     /* =====================================================
@@ -734,16 +721,14 @@ export const getProductsByBannerService = async ({
     }
 
     /* =====================================================
-       BASE FILTER
+       FILTER
     ===================================================== */
 
     const filter = {
       status: "active",
     };
 
-    /* =====================================================
-       CATEGORY FILTER
-    ===================================================== */
+    /* CATEGORY */
 
     if (banner.filterBy === "category") {
 
@@ -762,9 +747,7 @@ export const getProductsByBannerService = async ({
       filter.category = category._id;
     }
 
-    /* =====================================================
-       BRAND FILTER
-    ===================================================== */
+    /* BRAND */
 
     else if (banner.filterBy === "brand") {
 
@@ -787,7 +770,7 @@ export const getProductsByBannerService = async ({
        FETCH PRODUCTS
     ===================================================== */
 
-    const [products, totalProducts] = await Promise.all([
+    const [products, totalItems] = await Promise.all([
 
       Product.find(filter)
         .populate("category", "categoryId name")
@@ -801,11 +784,21 @@ export const getProductsByBannerService = async ({
 
     ]);
 
+    const totalPages = Math.ceil(totalItems / limit);
+
     /* =====================================================
        RESPONSE
     ===================================================== */
 
     const result = {
+      pagination: {
+        totalItems,
+        totalPages,
+        currentPage: page,
+        nextPage: page < totalPages ? page + 1 : null,
+        prevPage: page > 1 ? page - 1 : null,
+        limit,
+      }, 
       banner: {
         bannerId: banner.bannerId,
         filterBy: banner.filterBy,
@@ -813,38 +806,20 @@ export const getProductsByBannerService = async ({
         displayOrder: banner.displayOrder,
         imageUrl: banner.imageUrl,
       },
-
       products,
-
-      pagination: {
-        currentPage: page,
-
-        totalPages: Math.ceil(totalProducts / limit),
-
-        totalProducts,
-
-        limit,
-
-        hasNextPage:
-          page < Math.ceil(totalProducts / limit),
-
-        hasPrevPage: page > 1,
-      },
     };
 
     /* =====================================================
        STORE CACHE
     ===================================================== */
-
     await redisClient.set(
       cacheKey,
-      JSON.stringify(result),
-      "EX",
-      300
+      result,
+      {
+        ex: 300,
+      }
     );
-
     return result;
-
   } catch (error) {
     throw error;
   }
