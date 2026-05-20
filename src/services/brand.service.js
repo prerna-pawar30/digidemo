@@ -331,7 +331,7 @@ export const getAllBrandsService = async () => {
 
       await setCache(
         cacheKey,
-        result
+        brands
       );
 
 
