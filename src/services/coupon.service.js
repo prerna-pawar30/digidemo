@@ -25,18 +25,12 @@ export const createCouponService = async (data) => {
   /* ---------- NOTIFICATION ---------- */
   await sendNotification({
     sender: employee?._id,
-
     permission: "coupon.listing.read",
-
     title: "New Coupon Created",
-
     message: `${coupon.code} coupon has been created successfully`,
-
     type: "COUPON_CREATED",
-
     entityId: coupon._id,
     entityModel: "Coupon",
-
     metadata: {
       couponId: coupon.couponId,
       code: coupon.code,
@@ -45,8 +39,6 @@ export const createCouponService = async (data) => {
       createdBy: employee?.email || null,
     },
   });
-
-
   return coupon;
 };
 

@@ -635,6 +635,38 @@ export const updateProductStockService = async ({
     actionType: "Update",
   });
 
+  /* ---------------- NOTIFICATION ---------------- */
+await sendNotification({
+  sender: employee._id,
+  permission: "stock.listing.update",
+  title: "Product Stock Updated",
+  message: `Stock updated successfully for ${product.name}`,
+  type: "PRODUCT_STOCK_UPDATED",
+  entityId: product._id,
+  entityModel: "Product",
+  metadata: {
+    productId: product.productId,
+    productName: product.name,
+    stockType: product.stockType,
+
+    productStock:
+      product.stockType === "PRODUCT"
+        ? product.productStock
+        : null,
+
+    variantStocks:
+      product.stockType === "VARIANT"
+        ? product.variants.map((v) => ({
+            variantId: v.variantId,
+            variantName: v.name,
+            stock: v.variantStock,
+          }))
+        : [],
+
+    updatedBy: employee.email,
+  },
+});
+
   return product;
 };
 

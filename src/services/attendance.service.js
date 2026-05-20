@@ -3,6 +3,7 @@ import {EmployeeRecord} from "../models/manage/attendance.model.js"
 import { getISTDateString, getISTNow } from "../constants/date.js";
 import { v6 as uuidv6 } from "uuid";
 import { AdminApproval } from "../models/manage/attendanceapproval.model.js";
+import { sendNotification } from "./notification.service.js";
 
 export const punchInService = async (user) => {
   const normalizedEmail = user.email.toLowerCase().trim();
@@ -361,6 +362,30 @@ export const sendPunchOutRequestService = async (user, requestedPunchOut) => {
   });
 
   await empRecord.save();
+  /* ===== SEND NOTIFICATION ===== */
+await sendNotification({
+  sender: employee._id,
+
+  permission: "attendance.approval.read",
+
+  title: "Punch-Out Approval Request",
+
+  message: `${employee.firstName} ${employee.lastName} requested punch-out approval for ${date}`,
+
+  type: "FORGOT_PUNCH_OUT_REQUEST",
+
+  entityId: employee._id,
+  entityModel: "Employee",
+
+  metadata: {
+    employeeId: employee.employeeId,
+    employeeName: `${employee.firstName} ${employee.lastName}`,
+    employeeEmail: employee.email,
+    requestDate: date,
+    requestedPunchOut,
+    requestType: "FORGOT_PUNCH_OUT",
+  },
+});
 
   return {
     date,
@@ -521,6 +546,34 @@ export const requestLeaveService = async (user, data) => {
     },
     status: "PENDING",
   });
+  /* ---------- SEND NOTIFICATION ---------- */
+await sendNotification({
+  sender: employee._id,
+
+  permission: "leave.approval.read",
+
+  title: "New Leave Request",
+
+  message: `${employee.firstName} ${employee.lastName} requested ${leaveType} leave from ${fromDate} to ${toDate}`,
+
+  type: "LEAVE_REQUESTED",
+
+  entityId: approval._id,
+  entityModel: "AdminApproval",
+
+  metadata: {
+    approvalId: approval.approvalId,
+    employeeId: employee.employeeId,
+    employeeName: `${employee.firstName} ${employee.lastName}`,
+    employeeEmail: employee.email,
+    leaveType,
+    leaveDuration,
+    fromDate,
+    toDate,
+    leaveReason: leaveReason || null,
+    status: "PENDING",
+  },
+});
 
   return {
     approvalId: approval.approvalId,

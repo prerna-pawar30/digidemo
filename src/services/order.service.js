@@ -16,6 +16,7 @@ import Razorpay from "razorpay";
 import { getPagination } from "../helpers/pagination.helper.js";
 import mongoose from "mongoose";
 import {PermissionAudit} from "../models/manage/permissionaudit.model.js";
+import { sendNotification } from "./notification.service.js";
 
 const razorpayInstance = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
@@ -664,6 +665,32 @@ export const verifyRazorpayService = async (data, currentUser) => {
   user.orderHistory.push({ orderId: order._id });
   await user.save();
 
+
+/* ================= SEND NOTIFICATION ================= */
+await sendNotification({
+  permission: "order.listing.read",
+
+  title: "New Order Placed",
+
+  message: `Order ${order.orderId} has been placed successfully`,
+
+  type: "ORDER_PLACED",
+
+  entityId: order._id,
+  entityModel: "Order",
+
+  metadata: {
+    orderId: order.orderId,
+    customerName: `${user.firstName} ${user.lastName}`,
+    customerEmail: user.email,
+    paymentId: razorpay_payment_id,
+    paymentStatus: order.paymentStatus,
+    orderStatus: order.orderStatus,
+    totalAmount: order.grandTotal,
+    totalItems: order.items.length,
+  },
+});
+
   /* ================= EMAIL ================= */
   try {
     const emailHtml = orderConfirmationTemplate(
@@ -850,6 +877,40 @@ export const cancelOrderService = async (orderId, currentUser, reason) => {
     } catch (err) {
       console.error("Admin email failed:", err.message);
     }
+    /* ----------------------------
+   SEND NOTIFICATION
+---------------------------- */
+await sendNotification({
+  permission: "order.listing.read",
+
+  title: "Order Cancelled",
+
+  message: `Order ${order.orderId} has been cancelled by customer`,
+
+  type: "ORDER_CANCELLED",
+
+  entityId: order._id,
+  entityModel: "Order",
+
+  metadata: {
+    orderId: order.orderId,
+    customerName:
+      currentUser.firstName || currentUser.lastName
+        ? `${currentUser.firstName || ""} ${currentUser.lastName || ""}`.trim()
+        : currentUser.name || "Customer",
+
+    customerEmail: currentUser.email,
+
+    orderStatus: order.orderStatus,
+    paymentStatus: order.paymentStatus,
+
+    refundAmount: order.refundAmount || 0,
+
+    cancellationReason: order.cancellationReason,
+
+    cancelledAt,
+  },
+});
 
     return {
       orderId: order.orderId,
@@ -1556,6 +1617,33 @@ const sendReturnRequestEmails = async (order, validatedItems) => {
           `New Return Request - ${order.orderId}`,
           emailHtml
         );
+        /* ================= SEND NOTIFICATION ================= */
+await sendNotification({
+  permission: "update_stock",
+
+  title: "Return Request Updated",
+
+  message: `Return request updated for order ${order.orderId}`,
+
+  type: "RETURN_REQUEST_UPDATED",
+
+  entityId: order._id,
+  entityModel: "Order",
+
+  metadata: {
+    orderId: order.orderId,
+    requestId,
+    customerName: order.user?.name || "Customer",
+    totalItems: validatedItems.length,
+    items: validatedItems.map((item) => ({
+      productId: item.productId,
+      variantId: item.variantId,
+      quantity: item.quantity,
+      reason: item.reason,
+    })),
+  },
+});
+
 
       } catch (err) {
         console.error(`Failed email to ${emp.email}:`, err.message);
@@ -1647,6 +1735,33 @@ export const updatePendingReturnRequestService = async (data) => {
   }
 
   await order.save();
+  /* ================= SEND NOTIFICATION ================= */
+await sendNotification({
+  permission: "update_stock",
+
+  title: "Return Request Updated",
+
+  message: `Return request updated for order ${order.orderId}`,
+
+  type: "RETURN_REQUEST_UPDATED",
+
+  entityId: order._id,
+  entityModel: "Order",
+
+  metadata: {
+    orderId: order.orderId,
+    requestId,
+    customerName: order.user?.name || "Customer",
+    totalItems: validatedItems.length,
+    items: validatedItems.map((item) => ({
+      productId: item.productId,
+      variantId: item.variantId,
+      quantity: item.quantity,
+      reason: item.reason,
+    })),
+  },
+});
+
 
   return {
     orderId,
