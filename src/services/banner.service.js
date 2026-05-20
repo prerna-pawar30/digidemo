@@ -1,5 +1,4 @@
 import { v6 as uuidv6 } from "uuid";
-
 import Banner from "../models/manage/banner.model.js";
 import Category from "../models/manage/category.model.js";
 import Brand from "../models/manage/brand.model.js";
@@ -20,7 +19,7 @@ import { redis as redisClient } from "../config/redis.config.js";
    CACHE CONFIG
 ========================================================= */
 
-const CACHE_TTL = 300;
+const CACHE_TTL = 60*60;
 
 /* =========================================================
    CACHE HELPERS
@@ -476,10 +475,7 @@ export const updateBannerService = async ({
 
     /* ---------- ACTIVE CHECK ---------- */
 
-    const shouldBeActive =
-      typeof isActive === "boolean"
-        ? isActive
-        : banner.isActive;
+    const shouldBeActive = isActive;
 
     /* ---------- DISPLAY ORDER CHECK ---------- */
 
@@ -492,19 +488,14 @@ export const updateBannerService = async ({
           bannerId: {
             $ne: bannerId,
           },
-
           displayOrder,
-
           isActive: true,
         });
-
       if (conflict) {
         const err = new Error(
           `displayOrder ${displayOrder} already used`
         );
-
         err.statusCode = 409;
-
         throw err;
       }
     }
@@ -520,12 +511,9 @@ export const updateBannerService = async ({
           file,
           "banners"
         );
-
       banner.imageUrl =
         newImageUpload.url;
-
       await banner.save();
-
       if (oldImage) {
         await deleteFromS3(oldImage);
       }
@@ -548,12 +536,7 @@ export const updateBannerService = async ({
         displayOrder;
     }
 
-    if (
-      typeof isActive === "boolean"
-    ) {
-      banner.isActive = isActive;
-    }
-
+     banner.isActive = isActive;
     await banner.save();
 
     /* ---------- CLEAR CACHE ---------- */

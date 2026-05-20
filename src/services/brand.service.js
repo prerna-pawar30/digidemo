@@ -128,6 +128,8 @@ export const createBrandService = async ({
       logoUrl: logoUpload.url,
       files: fileUploads,
     });
+       /* ---------- CLEAR CACHE ---------- */
+    await clearBrandCache();
     /* ---------- AUDIT ---------- */
     await PermissionAudit.create({
       permissionAuditId: uuidv6(),
@@ -256,6 +258,8 @@ export const updateBrandService = async ({
     }
     /* ---------- SAVE ---------- */
     await brand.save();
+        /* ---------- CLEAR CACHE ---------- */
+    await clearBrandCache();
     /* ---------- AUDIT ---------- */
     await PermissionAudit.create({
       permissionAuditId: uuidv6(),
@@ -265,6 +269,26 @@ export const updateBrandService = async ({
       action: brand.brandName,
       permission: permission || "update_brand",
       actionType: "Update",
+    });
+     /* ---------- NOTIFICATION ---------- */
+
+    await sendNotification({
+      sender: employee._id,
+      permission: "brand.listing.read",
+      title: "Brand Updated",
+      message: `${brand.brandName} brand updated successfully`,
+      type: "BRAND_UPDATED",
+      entityId: brand._id,
+      entityModel: "Brand",
+      metadata: {
+        brandId: brand.brandId,
+        brandName:
+          brand.brandName,
+        totalFiles:
+          brand.files.length,
+        updatedBy:
+          employee.email,
+      },
     });
     return brand;
   } catch (error) {
@@ -280,10 +304,37 @@ export const updateBrandService = async ({
 
 export const getAllBrandsService = async () => {
   try {
+
+              /* ---------- CACHE KEY ---------- */
+
+      const cacheKey = `BRAND:ALL`;
+
+      /* ---------- CACHE ---------- */
+
+      const cached =
+        await getCache(cacheKey);
+
+      if (cached) {
+        console.log(
+          "CACHE HIT:",
+          cacheKey
+        );
+
+        return cached;
+      }
+
     const brands = await Brand.find()
       .sort({ brandName: 1 })
       .lean();
     const totalBrands = await Brand.countDocuments();
+      /* ---------- STORE CACHE ---------- */
+
+      await setCache(
+        cacheKey,
+        result
+      );
+
+
     return {
        totalBrands,
        brands, 
@@ -352,6 +403,8 @@ export const deleteBrandService = async ({ brandId, employee, permission }) => {
 
     /* ---------- DELETE BRAND ---------- */
     await Brand.deleteOne({ brandId });
+     /* ---------- CLEAR CACHE ---------- */
+    await clearBrandCache();
 
     /* ---------- AUDIT ---------- */
     await PermissionAudit.create({
@@ -363,9 +416,24 @@ export const deleteBrandService = async ({ brandId, employee, permission }) => {
       permission: permission || "delete_brand",
       actionType: "Delete",
     });
-
+    /* ---------- NOTIFICATION ---------- */
+    await sendNotification({
+      sender: employee._id,
+      permission: "brand.listing.read",
+      title: "Brand Deleted",
+      message: `${brand.brandName} brand deleted successfully`,
+      type: "BRAND_DELETED",
+      entityId: brand._id,
+      entityModel: "Brand",
+      matadata: {
+        brandId: brand.brandId,
+        brandName:
+          brand.brandName,
+        deletedBy:
+          employee.email,
+      },
+    });
     return true;
-
   } catch (error) {
     throw error;
   }
