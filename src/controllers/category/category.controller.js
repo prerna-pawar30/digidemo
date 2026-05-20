@@ -47,12 +47,10 @@ export const createCategory = async (req, res) => {
         errorCode: "VALIDATION_ERROR"
       });
     }
-
     /* ---------- FETCH EMPLOYEE ---------- */
     const employee = await Employee.findOne({
       email: req.user.email
     });
-
     if (!employee) {
       return sendError(res, {
         message: "Employee not found",
@@ -60,7 +58,6 @@ export const createCategory = async (req, res) => {
         errorCode: "EMPLOYEE_NOT_FOUND"
       });
     }
-
     const result = await createCategoryService({
       name,
       file: req.file,
@@ -264,12 +261,7 @@ export const deleteCategory = async (req, res) => {
  */
 export const getAllCategories = async (req, res) => {
   try {
-    const { page, limit, skip } = getPagination(req.query);
-    const result = await getAllCategoriesService({
-      page,
-      limit,
-      skip
-    });
+    const result = await getAllCategoriesService();
     return sendSuccess(
       res,
       result,

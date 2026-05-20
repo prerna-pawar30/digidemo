@@ -3,6 +3,75 @@ import Category from "../models/manage/category.model.js";
 import { uploadToS3, deleteFromS3 } from "./awsS3.service.js";
 import { PermissionAudit}  from "../models/manage/permissionaudit.model.js";
 import { sendNotification } from "./notification.service.js";
+import { redis as redisClient } from "../config/redis.config.js";
+
+/* =========================================================
+   CACHE CONFIG
+========================================================= */
+
+const CACHE_TTL = 60 * 60;
+
+/* =========================================================
+   CACHE HELPERS
+========================================================= */
+
+const getCache = async (key) => {
+  try {
+    const cachedData = await redisClient.get(key);
+
+    if (!cachedData) {
+      return null;
+    }
+
+    return JSON.parse(cachedData);
+  } catch (error) {
+    console.log(
+      "REDIS GET CACHE ERROR:",
+      error.message
+    );
+
+    return null;
+  }
+};
+
+const setCache = async (key, data) => {
+  try {
+    await redisClient.set(
+      key,
+      JSON.stringify(data),
+      {
+        ex: CACHE_TTL,
+      }
+    );
+  } catch (error) {
+    console.log(
+      "REDIS SET CACHE ERROR:",
+      error.message
+    );
+  }
+};
+
+const clearCategoryCache = async () => {
+  try {
+    const keys = await redisClient.keys(
+      "CATEGORY:*"
+    );
+
+    if (keys.length > 0) {
+      await redisClient.del(...keys);
+
+      console.log(
+        "CATEGORY CACHE CLEARED:",
+        keys
+      );
+    }
+  } catch (error) {
+    console.log(
+      "REDIS CATEGORY CACHE CLEAR ERROR:",
+      error.message
+    );
+  }
+};
 
 export const createCategoryService = async ({
   name,
@@ -34,6 +103,8 @@ export const createCategoryService = async ({
       name,
       image: uploadedImage.url,
     });
+        /* ---------- CLEAR CACHE ---------- */
+    await clearCategoryCache();
 
     /* ---------- AUDIT ---------- */
     await PermissionAudit.create({
@@ -61,9 +132,7 @@ await sendNotification({
     createdBy: employee.email,
   },
 });
-
     return category;
-
   } catch (error) {
     throw error;
   }
@@ -77,9 +146,7 @@ export const updateCategoryService = async ({
   permission
 }) => {
   let newImageUpload;
-
   try {
-
     if (!categoryId) {
       const err = new Error("CategoryId is required");
       err.statusCode = 400;
@@ -120,7 +187,8 @@ export const updateCategoryService = async ({
     category.name = name ?? category.name;
 
     await category.save();
-
+  /* ---------- CLEAR CACHE ---------- */
+    await clearCategoryCache();
     /* ---------- AUDIT ---------- */
     await PermissionAudit.create({
       permissionAuditId: uuidv6(),
@@ -131,9 +199,28 @@ export const updateCategoryService = async ({
       permission: permission || "update_category",
       actionType: "Update",
     });
-
+/* ---------- NOTIFICATION ---------- */
+    await sendNotification({
+      sender: employee._id,
+      permission:
+        "category.listing.read",
+      title: "Category Updated",
+      message: `${category.name} category updated successfully`,
+      type: "CATEGORY_UPDATED",
+      entityId: category._id,
+      entityModel: "Category",
+      metadata: {
+        categoryId:
+          category.categoryId,
+        categoryName:
+          category.name,
+        image:
+          category.image,
+        updatedBy:
+          employee.email,
+      },
+    });
     return category;
-
   } catch (error) {
 
     /* ---------- ROLLBACK ---------- */
@@ -174,7 +261,8 @@ export const deleteCategoryService = async ({
 
     /* ---------- DELETE CATEGORY ---------- */
     await Category.deleteOne({ categoryId });
-
+      /* ---------- CLEAR CACHE ---------- */
+       await clearCategoryCache();
     /* ---------- AUDIT ---------- */
     await PermissionAudit.create({
       permissionAuditId: uuidv6(),
@@ -185,34 +273,61 @@ export const deleteCategoryService = async ({
       permission: permission || "delete_category",
       actionType: "Delete",
     });
+      /* ---------- NOTIFICATION ---------- */
 
+    await sendNotification({
+      sender: employee._id,
+      permission:
+        "category.listing.read",
+      title: "Category Deleted",
+      message: `${category.name} category deleted successfully`,
+      type: "CATEGORY_DELETED",
+      entityId: category._id,
+      entityModel: "Category",
+      metadata: {
+        categoryId:
+          category.categoryId,
+        categoryName:
+          category.name,
+        deletedBy:
+          employee.email,
+      },
+    });
     return true;
-
   } catch (error) {
     throw error;
   }
 };
 
-export const getAllCategoriesService = async ({ page, limit, skip }) => {
+export const getAllCategoriesService = async () => {
   try {
+       /* ---------- CACHE KEY ---------- */
 
+    const cacheKey = `CATEGORY:ALL`;
+
+    /* ---------- CACHE CHECK ---------- */
+    const cachedData =
+      await getCache(cacheKey);
+    if (cachedData) {
+      console.log(
+        "CATEGORY CACHE HIT:",
+        cacheKey
+      );
+      return cachedData;
+    }
     const categories = await Category.find()
       .sort({ name: 1 })
-      .skip(skip)
-      .limit(limit)
       .lean();
-
     const totalCategories = await Category.countDocuments();
-
+     /* ---------- STORE CACHE ---------- */
+    await setCache(
+      cacheKey,
+     categories,
+    );
     return {
       categories,
-      pagination: {
-        currentPage: page,
-        totalPages: Math.ceil(totalCategories / limit),
-        totalCategories,
-        limit,
-      },
     };
+    
 
   } catch (error) {
     throw error;
