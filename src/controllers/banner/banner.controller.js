@@ -120,12 +120,11 @@ export const getProductsByBanner = async (req, res) => {
         errorCode: "VALIDATION_ERROR"
       });
     }
-    const { page, limit, skip } = getPagination(req.query);
+    const { page, limit } = getPagination(req.query);
     const result = await getProductsByBannerService({
       bannerId,
       page,
-      limit,
-      skip
+      limit
     });
     return sendSuccess(
       res,
@@ -174,11 +173,10 @@ export const getProductsByBanner = async (req, res) => {
  */
 export const getAllBanners = async (req, res) => {
   try {
-    const { page, limit, skip } = getPagination(req.query);
+    const { page, limit} = getPagination(req.query);
     const result = await getAllBannersService({
       page,
       limit,
-      skip
     });
     return sendSuccess(
       res,
