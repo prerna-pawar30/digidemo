@@ -150,7 +150,7 @@ export const createBrandService = async ({
     try {
       await sendNotification({
         sender: employee._id,
-        permission: "brand.listing.read",
+        permission: "brand.listing.create",
         title: "New Brand Created",
         message: `${brand.brandName} brand has been created successfully`,
         type: "BRAND_CREATED",
@@ -292,7 +292,7 @@ export const updateBrandService = async ({
     try {
       await sendNotification({
         sender: employee._id,
-        permission: "brand.listing.read",
+        permission: "brand.listing.update",
         title: "Brand Updated",
         message: `${brand.brandName} brand updated successfully`,
         type: "BRAND_UPDATED",
@@ -430,7 +430,7 @@ export const deleteBrandService = async ({ brandId, employee, permission }) => {
     try {
       await sendNotification({
         sender: employee._id,
-        permission: "brand.listing.read",
+        permission: "brand.listing.delete",
         title: "Brand Deleted",
         message: `${brand.brandName} brand deleted successfully`,
         type: "BRAND_DELETED",
