@@ -9,6 +9,7 @@ import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import { resetPasswordTemplate } from "../../config/templates/resetPasswordTemplate.js";
 import { sendNotification } from "../notification.service.js";
+import Permission from "../../models/manage/permission.model.js";
 
 
 export const createEmployeeService = async (data, adminEmail) => {
