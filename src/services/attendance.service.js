@@ -21,13 +21,12 @@ export const punchInService = async (user) => {
       errorCode: "EMPLOYEE_NOT_FOUND",
     };
   }
+
   const nowIST = getISTNow();
   const today = getISTDateString(nowIST);
 
   /* ===== FIND OR CREATE RECORD DOC ===== */
-  let recordDoc = await EmployeeRecord.findOne({
-    employee: employee._id,
-  });
+  let recordDoc = await EmployeeRecord.findOne({ employee: employee._id });
 
   if (!recordDoc) {
     recordDoc = await EmployeeRecord.create({
@@ -35,22 +34,11 @@ export const punchInService = async (user) => {
       records: [],
     });
   }
-
-
-
   /* ===== FIND TODAY RECORD ===== */
   let todayRecord = recordDoc.records.find((r) => r.date === today);
 
   if (todayRecord) {
-    /* ===== ALREADY PUNCHED IN ===== */
-      throw {
-     message: "Document already exists for today",
-    statusCode: 400,
-    errorCode: "TODAY_RECORD_ALREADY_EXISTS",
-      };
-    
-
-    /* ===== HOLIDAY BLOCK ===== */
+    /* ===== 1. HOLIDAY BLOCK ===== */
     if (todayRecord.dayType?.includes("HOLIDAY")) {
       throw {
         message: "Today is a Holiday. Punch-in disabled.",
@@ -58,8 +46,7 @@ export const punchInService = async (user) => {
         errorCode: "HOLIDAY_BLOCK",
       };
     }
-
-    /* ===== FULL DAY LEAVE BLOCK ===== */
+    /* ===== 2. FULL DAY LEAVE BLOCK ===== */
     if (
       todayRecord.dayType?.includes("LEAVE") &&
       todayRecord.leaveDuration === "FULL_DAY"
@@ -71,15 +58,23 @@ export const punchInService = async (user) => {
       };
     }
 
-    /* ===== HALF DAY LEAVE → ADD WORKING ===== */
+    /* ===== 3. ALREADY PUNCHED IN ===== */
+    if (todayRecord.punchIn) {
+      throw {
+        message: "Already punched in for today",
+        statusCode: 400,
+        errorCode: "ALREADY_PUNCHED_IN",
+      };
+    }
+
+    /* ===== 4. HALF DAY LEAVE → ALLOW PUNCH IN ===== */
     todayRecord.dayType = [
       ...new Set([...(todayRecord.dayType || []), "WORKING"]),
     ];
-
     todayRecord.punchIn = nowIST;
   } else {
     /* ===== CREATE NEW RECORD ===== */
-    todayRecord = {
+    recordDoc.records.push({
       recordId: uuidv6(),
       date: today,
       dayType: ["WORKING"],
@@ -87,9 +82,7 @@ export const punchInService = async (user) => {
       punchOut: null,
       status: [],
       totalWorkedTime: { hours: 0, minutes: 0 },
-    };
-
-    recordDoc.records.push(todayRecord);
+    });
     todayRecord = recordDoc.records[recordDoc.records.length - 1];
   }
 
@@ -115,6 +108,7 @@ export const punchInService = async (user) => {
     status: todayRecord.status,
   };
 };
+
 
 export const punchOutService = async (user) => {
   const normalizedEmail = user.email.toLowerCase().trim();

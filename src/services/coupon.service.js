@@ -3,6 +3,7 @@ import { v6 as uuidv6 } from "uuid";
 import { sendNotification } from "./notification.service.js";
 import { PermissionAudit } from "../models/manage/permissionaudit.model.js";
 import { redis as redisClient } from "../config/redis.config.js";
+import Employee from "../models/manage/employee.model.js";
 
 /* =========================================================
    CACHE CONFIG
@@ -59,11 +60,11 @@ export const createCouponService = async ({ data, employee, permission }) => {
   try {
     await PermissionAudit.create({
       permissionAuditId: uuidv6(),
-      actionBy: employee?._id,
+      actionBy: Employee?._id,
       actionByEmail: employee?.email,
       actionFor: coupon._id,
       action: coupon.code,
-      permission: permission || "create_coupon",
+      permission: data.permission || "create_coupon",
       actionType: "Create",
     });
   } catch (err) {
@@ -98,7 +99,7 @@ export const createCouponService = async ({ data, employee, permission }) => {
 /* =========================================================
    UPDATE COUPON
 ========================================================= */
-export const updateCouponService = async ({ couponId, data }) => {
+export const updateCouponService = async ({ couponId, data,employee }) => {
   if (data.code) data.code = data.code.toUpperCase();
 
   const coupon = await Coupon.findOneAndUpdate(
@@ -123,7 +124,7 @@ export const updateCouponService = async ({ couponId, data }) => {
       actionByEmail: employee?.email,
       actionFor: coupon._id,
       action: coupon.code,
-      permission: permission || "update_coupon",
+      permission: data.permission || "update_coupon",
       actionType: "Update",
     });
   } catch (err) {
@@ -239,7 +240,7 @@ export const getSingleCouponService = async ({ couponId }) => {
 /* =========================================================
    DELETE COUPON
 ========================================================= */
-export const deleteCouponService = async ({ couponId }) => {
+export const deleteCouponService = async ({ couponId, employee }) => {
   const coupon = await Coupon.findOneAndDelete({ couponId });
 
   if (!coupon) {
