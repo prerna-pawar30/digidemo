@@ -4,11 +4,9 @@ const libraryLogsSchema = new mongoose.Schema(
   {
       libraryObjectId: {
       type: mongoose.Schema.Types.ObjectId,
-      required: true,
     },
     libraryId: {
       type: String, 
-      required: true,
       trim: true,
     },
     brandName: {
