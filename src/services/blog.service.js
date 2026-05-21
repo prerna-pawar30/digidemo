@@ -387,7 +387,7 @@ export const addBlogCommentService = async ({ blogId, data }) => {
   try {
     await sendNotification({
       sender: null,
-      permission: "blog.comment.moderate",   // only moderators get this
+      permission: "blog.lisiting.read",   // only moderators get this
       title: "New Comment Pending Approval",
       message: `New comment on "${blog.title}" by ${data.name} — awaiting moderation`,
       type: "BLOG_COMMENT_ADDED",
