@@ -185,7 +185,7 @@ export const forgotEmployeePasswordService = async (email) => {
   employee.resetPasswordToken = resetToken;
   employee.resetPasswordExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
   await employee.save();
-  const resetURL = `https://manage.digident.in/reset-password/${resetToken}`;
+  const resetURL = `https://adminfrontend00.netlify.app/reset-password/${resetToken}`;
   await sendZohoMail(
     employee.email,
     "Reset Your Password",
