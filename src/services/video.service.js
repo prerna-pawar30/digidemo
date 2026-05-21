@@ -197,7 +197,7 @@ export const addVideoService = async ({ title, link, permission, userEmail }) =>
   try {
     await sendNotification({
       sender:      employee._id,
-      permission:  "video.listing.read",
+      permission:  "video.listing.create",
       title:       "New YouTube Video Added",
       message:     `YouTube video "${newVideo.title}" added by ${employee.email}`,
       type:        "YOUTUBE_VIDEO_CREATED",
@@ -379,7 +379,7 @@ export const updateVideoService = async ({
   try {
     await sendNotification({
       sender:      employee._id,
-      permission:  "video.listing.read",
+      permission:  "video.listing.update",
       title:       "YouTube Video Updated",
       message:     `YouTube video "${video.title}" updated by ${employee.email}`,
       type:        "YOUTUBE_VIDEO_UPDATED",
@@ -459,7 +459,7 @@ export const deleteVideoService = async ({ ytVideoId, permission, userEmail }) =
   try {
     await sendNotification({
       sender:      employee._id,
-      permission:  "video.listing.read",
+      permission:  "video.listing.delete",
       title:       "YouTube Video Deleted",
       message:     `YouTube video "${videoToDelete.title}" deleted by ${employee.email}`,
       type:        "YOUTUBE_VIDEO_DELETED",
