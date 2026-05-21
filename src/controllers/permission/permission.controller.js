@@ -47,14 +47,8 @@ export const createPermission = async (req, res) => {
       });
     }
 
-    const permission = await createPermissionService(value, req.user);
-
-    return sendSuccess(
-      res,
-      { permission },
-      201,
-      "Permission created successfully"
-    );
+    const result = await createPermissionService(value, req.user);
+   return sendSuccess(res, result, 201, "Permission created successfully");
   } catch (error) {
     return handleError(res, error);
   }
@@ -156,18 +150,9 @@ export const deletePermission = async (req, res) => {
       });
     }
 
-    const deletedPermission = await deletePermissionService(
-      permissionId,
-      req.user,
-      req.permissionAction
-    );
-
-    return sendSuccess(
-      res,
-      { permission: deletedPermission },
-      200,
-      "Permission deleted successfully"
-    );
+// AFTER
+const result = await deletePermissionService(permissionId, req.user, req.permissionAction);
+return sendSuccess(res, result, 200, "Permission deleted successfully");
   } catch (error) {
     return handleError(res, error);
   }

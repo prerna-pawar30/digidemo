@@ -107,6 +107,7 @@ export const createCategoryService = async ({
     await clearCategoryCache();
 
     /* ---------- AUDIT ---------- */
+    try{
     await PermissionAudit.create({
       permissionAuditId: uuidv6(),
       actionBy: employee._id,
@@ -116,7 +117,12 @@ export const createCategoryService = async ({
       permission: permission,
       actionType: "Create",
     });
+  } catch (err) {
+    console.error("Audit log failed on create category:", err.message);
+  }
+  
     /* ---------- NOTIFICATION ---------- */
+    try{
 await sendNotification({
   sender: employee._id,
   permission: "category.listing.read",
@@ -132,6 +138,9 @@ await sendNotification({
     createdBy: employee.email,
   },
 });
+} catch (err) {
+  console.error("Notification failed on create category:", err.message);
+}
     return category;
   } catch (error) {
     throw error;
@@ -190,6 +199,7 @@ export const updateCategoryService = async ({
   /* ---------- CLEAR CACHE ---------- */
     await clearCategoryCache();
     /* ---------- AUDIT ---------- */
+    try{
     await PermissionAudit.create({
       permissionAuditId: uuidv6(),
       actionBy: employee._id,
@@ -199,7 +209,11 @@ export const updateCategoryService = async ({
       permission: permission || "update_category",
       actionType: "Update",
     });
+  }catch (err) {
+    console.error("Audit log failed on update category:", err.message);
+  }
 /* ---------- NOTIFICATION ---------- */
+    try{
     await sendNotification({
       sender: employee._id,
       permission:
@@ -219,7 +233,9 @@ export const updateCategoryService = async ({
         updatedBy:
           employee.email,
       },
-    });
+    });} catch (err) {
+      console.error("Notification failed on update category:", err.message);
+    }
     return category;
   } catch (error) {
 
@@ -264,6 +280,7 @@ export const deleteCategoryService = async ({
       /* ---------- CLEAR CACHE ---------- */
        await clearCategoryCache();
     /* ---------- AUDIT ---------- */
+    try{
     await PermissionAudit.create({
       permissionAuditId: uuidv6(),
       actionBy: employee._id,
@@ -273,8 +290,12 @@ export const deleteCategoryService = async ({
       permission: permission || "delete_category",
       actionType: "Delete",
     });
+  }
+    catch (err) {
+      console.error("Audit log failed on delete category:", err.message);
+    }
       /* ---------- NOTIFICATION ---------- */
-
+    try{
     await sendNotification({
       sender: employee._id,
       permission:
@@ -292,7 +313,9 @@ export const deleteCategoryService = async ({
         deletedBy:
           employee.email,
       },
-    });
+    });} catch (err) {
+      console.error("Notification failed on delete category:", err.message);
+    }
     return true;
   } catch (error) {
     throw error;
@@ -302,9 +325,7 @@ export const deleteCategoryService = async ({
 export const getAllCategoriesService = async () => {
   try {
        /* ---------- CACHE KEY ---------- */
-
     const cacheKey = `CATEGORY:ALL`;
-
     /* ---------- CACHE CHECK ---------- */
     const cachedData =
       await getCache(cacheKey);
@@ -315,20 +336,17 @@ export const getAllCategoriesService = async () => {
       );
       return cachedData;
     }
-    const categories = await Category.find()
-      .sort({ name: 1 })
-      .lean();
-    const totalCategories = await Category.countDocuments();
-     /* ---------- STORE CACHE ---------- */
-    await setCache(
-      cacheKey,
-     categories,
-    );
-    return {
+    const [categories, totalCategories] = await Promise.all([
+      Category.find().sort({ name: 1 }).lean(),
+      Category.countDocuments(),
+    ]);
+    const result = {
       categories,
+      totalCategories,
     };
-    
-
+    /* ---------- STORE CACHE ---------- */
+    await setCache(cacheKey, result);
+    return result;
   } catch (error) {
     throw error;
   }
