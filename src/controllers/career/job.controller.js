@@ -110,17 +110,6 @@ export const createJob = async (req, res) => {
       data: value,
       employee,
     });
-      /* ---------- AUDIT ---------- */
-    await PermissionAudit.create({
-      permissionAuditId: uuidv6(),
-      actionBy: employee._id,
-      actionByEmail: employee.email,
-      actionFor: job._id,
-      actionForEmail: null,
-      action: job.title,
-      permission: value.permission || "career.job.create",
-      actionType: "Create",
-    });
     return sendSuccess(res, job, 201, "Job created successfully");
   } catch (error) {
     return handleError(res, error);
@@ -229,20 +218,6 @@ export const updateJob = async (req, res) => {
       data: value,
       employee,
     });
-
-         /* ---------- AUDIT ---------- */
-    await PermissionAudit.create({
-      permissionAuditId: uuidv6(),
-      actionBy: employee._id,
-      actionByEmail: employee.email,
-      actionFor: job._id,
-      actionForEmail: null,
-      action: job.title,
-      permission: value.permission || "career.job.update",
-      actionType: "Update",
-    });
-
-
     return sendSuccess(res, job, 200, "Job updated successfully");
   } catch (error) {
     return handleError(res, error);
@@ -324,27 +299,9 @@ export const getManageJobs = async (req, res) => {
         experienceLevel,
       },
     });
-
-  /* ---------- PAGINATION META ---------- */
-    const totalItems = result.totalJobs;
-    const currentPage = pagination.page;
-    const totalPages = Math.ceil(totalItems / pagination.limit);
-
-    const paginationMeta = {
-      totalItems,
-      totalPages,
-      currentPage,
-      nextPage: currentPage < totalPages ? currentPage + 1 : null,
-      prevPage: currentPage > 1 ? currentPage - 1 : null,
-      limit: pagination.limit,
-    };
-
     return sendSuccess(
       res,
-      {
-        pagination: paginationMeta,
-        jobs: result.jobs,
-      },
+     result,
       200,
       "Jobs fetched successfully"
     );
@@ -416,27 +373,9 @@ export const getCareerJobs = async (req, res) => {
         experienceLevel,
       },
     });
-
-    /* ---------- PAGINATION META ---------- */
-    const totalItems = result.totalJobs;
-    const currentPage = pagination.page;
-    const totalPages = Math.ceil(totalItems / pagination.limit);
-
-    const paginationMeta = {
-      totalItems,
-      totalPages,
-      currentPage,
-      nextPage: currentPage < totalPages ? currentPage + 1 : null,
-      prevPage: currentPage > 1 ? currentPage - 1 : null,
-      limit: pagination.limit,
-    };
-
     return sendSuccess(
       res,
-      {
-        pagination: paginationMeta,
-        jobs: result.jobs,
-      },
+      result,
       200,
       "Career jobs fetched successfully"
     );
@@ -576,10 +515,28 @@ export const getJobBySlug = async (req, res) => {
  *   message: "Employee not found"
  * }
  */
+/* =========================================================
+   CONTROLLER
+========================================================= */
 export const deleteJob = async (req, res) => {
   try {
+    /* ---------- VALIDATION ---------- */
+
+    const { jobId } = req.params;
+
+    if (!jobId) {
+      return sendError(res, {
+        message: "JobId is required",
+        statusCode: 400,
+        errorCode: "VALIDATION_ERROR",
+      });
+    }
+
     /* ---------- FETCH EMPLOYEE ---------- */
-    const employee = await Employee.findOne({ email: req.user.email });
+
+    const employee = await Employee.findOne({
+      email: req.user.email,
+    });
 
     if (!employee) {
       return sendError(res, {
@@ -588,24 +545,31 @@ export const deleteJob = async (req, res) => {
         errorCode: "EMPLOYEE_NOT_FOUND",
       });
     }
+
     /* ---------- DELETE JOB ---------- */
-    const job = await deleteJobService({
-      jobId: req.params.jobId,
+
+    const result = await deleteJobService({
+      jobId,
+      employee,
+      permission:
+        req.body.permission,
     });
 
-    /* ---------- AUDIT ---------- */
-    await PermissionAudit.create({
-      permissionAuditId: uuidv6(),
-      actionBy: employee._id,
-      actionByEmail: employee.email,
-      actionFor: job?._id || null,
-      actionForEmail: null,
-      action: job?.title || "Job deleted",
-      permission: req.body.permission || "career.job.delete",
-      actionType: "Delete",
-    });
-    return sendSuccess(res, null, 200, "Job deleted successfully");
+    return sendSuccess(
+      res,
+      result,
+      200,
+      "Job deleted successfully"
+    );
+
   } catch (error) {
+
+    console.error(
+      "Delete Job Controller Error:",
+      error
+    );
+
     return handleError(res, error);
+
   }
 };

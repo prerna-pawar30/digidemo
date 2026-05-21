@@ -4,6 +4,8 @@ import Employee from "../models/manage/employee.model.js";
 import { PermissionAudit } from "../models/manage/permissionaudit.model.js";
 import { uploadToS3, deleteFromS3 } from "./awsS3.service.js";
 import { sendNotification } from "./notification.service.js";
+
+
 /**
  * @function uploadFiles
  *
@@ -58,10 +60,8 @@ export const addProductService = async ({ body, files, user }) => {
     if (!employee) {
       throw new Error("Employee not found");
     }
-
     /* ---------- INIT PRODUCT ---------- */
     body.productId = uuidv6();
-
     /* ---------- NORMALIZE ARRAYS ---------- */
     body.description = Array.isArray(body.description) ? body.description : [];
     body.specification = Array.isArray(body.specification) ? body.specification : [];
@@ -76,7 +76,6 @@ export const addProductService = async ({ body, files, user }) => {
     const descMap = Array.isArray(body.descriptionImageMap)
       ? body.descriptionImageMap
       : [];
-
     const groupedDesc = {};
 
     descFiles.forEach((file, i) => {

@@ -1,6 +1,103 @@
 import Job from "../models/manage/job.model.js";
 import JobApplication from "../models/ecommarace/jobApplication.model.js";
+import { PermissionAudit } from "../models/manage/permissionaudit.model.js";
+import { sendNotification } from "./notification.service.js";
+import { redis as redisClient } from "../config/redis.config.js";
 import { v6 as uuidv6 } from "uuid";
+
+/* =========================================================
+   CACHE CONFIG
+========================================================= */
+
+const CACHE_TTL = 60 * 30;
+
+/* =========================================================
+   CACHE HELPERS
+========================================================= */
+
+const setCache = async (
+  key,
+  data
+) => {
+  try {
+
+    await redisClient.set(
+      key,
+      JSON.stringify(data),
+      {
+        ex: CACHE_TTL,
+      }
+    );
+
+  } catch (error) {
+
+    console.log(
+      "REDIS SET CACHE ERROR:",
+      error.message
+    );
+
+  }
+};
+
+const getCache = async (
+  key
+) => {
+  try {
+
+    const cachedData =
+      await redisClient.get(key);
+
+    if (!cachedData) {
+      return null;
+    }
+
+    return JSON.parse(
+      cachedData
+    );
+
+  } catch (error) {
+
+    console.log(
+      "REDIS GET CACHE ERROR:",
+      error.message
+    );
+
+    return null;
+
+  }
+};
+
+const clearApplicationCache =
+  async () => {
+    try {
+
+      const keys =
+        await redisClient.keys(
+          "JOB_APPLICATION:*"
+        );
+
+      if (keys.length > 0) {
+
+        await redisClient.del(
+          ...keys
+        );
+
+        console.log(
+          "JOB APPLICATION CACHE CLEARED:",
+          keys
+        );
+      }
+
+    } catch (error) {
+
+      console.log(
+        "CACHE CLEAR ERROR:",
+        error.message
+      );
+
+    }
+  };
+
 
 
 export const submitJobApplicationService = async ({
@@ -53,7 +150,51 @@ export const submitJobApplicationService = async ({
     additionalFiles,
     source: data.source || "career_page",
   });
+      /* ---------- CLEAR CACHE ---------- */
+      await clearApplicationCache();
+            /* ---------- SEND NOTIFICATION ---------- */
 
+      await sendNotification({
+        sender: null,
+
+        permission:
+          "job.application.read",
+
+        title:
+          "New Job Application",
+
+        message: `${application.applicant.firstName} ${application.applicant.lastName} applied for ${job.title}`,
+
+        type:
+          "JOB_APPLICATION_CREATED",
+
+        entityId:
+          application._id,
+
+        entityModel:
+          "JobApplication",
+
+        metadata: {
+          applicationId:
+            application.applicationId,
+
+          jobId:
+            job.jobId,
+
+          jobTitle:
+            job.title,
+
+          applicantName: `${application.applicant.firstName} ${application.applicant.lastName}`,
+
+          applicantEmail:
+            application
+              .applicant
+              .email,
+
+          source:
+            application.source,
+        },
+      });
   return application;
 };
 
@@ -137,6 +278,45 @@ export const updateJobApplicationService = async ({
 
   await application.save();
 
+      /* ---------- CLEAR CACHE ---------- */
+      await clearApplicationCache();
+      /* ---------- SEND NOTIFICATION ---------- */
+      await sendNotification({
+        sender:
+          employee?._id,
+
+        permission:
+          "job.application.read",
+
+        title:
+          "Application Status Updated",
+
+        message: `Application status updated to ${status}`,
+
+        type:
+          "JOB_APPLICATION_STATUS_UPDATED",
+
+        entityId:
+          application._id,
+
+        entityModel:
+          "JobApplication",
+
+        metadata: {
+          applicationId:
+            application.applicationId,
+
+          applicantEmail:
+            application
+              .applicant
+              .email,
+
+          status,
+
+          reviewedBy:
+            employee?.email,
+        },
+      });
   return application;
 };
 
@@ -177,6 +357,10 @@ export const getApplicationsService = async ({ pagination, filters }) => {
     .skip(skip)
     .limit(limit)
     .lean();
+
+
+      /* ---------- CLEAR CACHE ---------- */
+      await clearApplicationCache();
 
   return {
     applications,
