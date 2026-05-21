@@ -92,9 +92,7 @@ export const verifyOtpAndCreateCustomerService = async ({
 }) => {
   const normalizedEmail = email.toLowerCase().trim();
   const isScanbridge = category.toLowerCase() === "scanbridge";
-
   const existingUser = await CustomerData.findOne({ email: normalizedEmail });
-
   /* ---------- SEND LIBRARY REQUEST EMAILS FOR SCANBRIDGE ---------- */
   if (isScanbridge) {
     try {
