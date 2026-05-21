@@ -96,7 +96,7 @@ export const createJobService = async ({ data, employee }) => {
   try {
     await sendNotification({
       sender: employee?._id,
-      permission: "job.listing.read",
+      permission: "career.job.create",
       title: "Job Created",
       message: `New job opening added for ${job.title}`,
       type: "JOB_CREATED",
@@ -172,7 +172,7 @@ export const updateJobService = async ({ jobId, data, employee }) => {
   try {
     await sendNotification({
       sender: employee?._id,
-      permission: "job.listing.read",
+      permission: "career.job..update",
       title: "Job Updated",
       message: `Job "${job.title}" has been updated`,
       type: "JOB_UPDATED",
@@ -370,7 +370,7 @@ export const deleteJobService = async ({ jobId, employee }) => {
   try {
     await sendNotification({
       sender: employee?._id || null,
-      permission: "job.listing.read",
+      permission: "career.job..delete",
       title: "Job Deleted",
       message: `Job "${job.title}" has been deleted`,
       type: "JOB_DELETED",
@@ -385,6 +385,5 @@ export const deleteJobService = async ({ jobId, employee }) => {
   } catch (err) {
     console.error("Notification failed on delete job:", err.message);
   }
-
   return job;
 };

@@ -13,11 +13,9 @@ export const submitJobApplicationService = async ({
     jobId: data.jobId,
     status: "published",
   });
-
   if (!job) {
     throw new Error("Job not found or not open for application");
   }
-
   const existingApplication = await JobApplication.findOne({
     jobId: data.jobId,
     "applicant.email": data.email.toLowerCase(),

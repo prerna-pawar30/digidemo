@@ -75,7 +75,7 @@ export const createCouponService = async ({ data, employee, permission }) => {
   try {
     await sendNotification({
       sender: employee?._id,
-      permission: "coupon.listing.read",
+      permission: "coupan.listing.read",
       title: "New Coupon Created",
       message: `${coupon.code} coupon has been created successfully`,
       type: "COUPON_CREATED",
@@ -116,6 +116,41 @@ export const updateCouponService = async ({ couponId, data }) => {
 
   /* ---------- CLEAR CACHE ---------- */
   await clearCouponCache();
+  /* ---------- AUDIT ---------- */
+  try {
+    await PermissionAudit.create({
+      permissionAuditId: uuidv6(),
+      actionBy: employee?._id,
+      actionByEmail: employee?.email,
+      actionFor: coupon._id,
+      action: coupon.code,
+      permission: permission || "update_coupon",
+      actionType: "Update",
+    });
+  } catch (err) {
+    console.error("Audit log failed on update coupon:", err.message);
+  }
+  /* ---------- NOTIFICATION ---------- */
+  try {
+    await sendNotification({
+      sender: employee?._id,
+      permission: "coupan.listing.read",
+      title: "New Coupon Created",
+      message: `${coupon.code} coupon has been update successfully`,
+      type: "COUPON_CREATED",
+      entityId: coupon._id,
+      entityModel: "Coupon",
+      metadata: {
+        couponId: coupon.couponId,
+        code: coupon.code,
+        discountType: coupon.discountType,
+        discountValue: coupon.discountValue,
+        createdBy: employee?.email || null,
+      },
+    });
+  } catch (err) {
+    console.error("Notification failed on update coupon:", err.message);
+  }
 
   return coupon;
 };
@@ -217,6 +252,41 @@ export const deleteCouponService = async ({ couponId }) => {
 
   /* ---------- CLEAR CACHE ---------- */
   await clearCouponCache();
+  /* ---------- AUDIT ---------- */
+  try {
+    await PermissionAudit.create({
+      permissionAuditId: uuidv6(),
+      actionBy: employee?._id,
+      actionByEmail: employee?.email,
+      actionFor: coupon._id,
+      action: coupon.code,
+      permission: permission || "delete_coupon",
+      actionType: "Delete",
+    });
+  } catch (err) {
+    console.error("Audit log failed on create coupon:", err.message);
+  }
+  /* ---------- NOTIFICATION ---------- */
+  try {
+    await sendNotification({
+      sender: employee?._id,
+      permission: "coupan.listing.read",
+      title: "New Coupon Created",
+      message: `${coupon.code} coupon has been delete successfully`,
+      type: "COUPON_CREATED",
+      entityId: coupon._id,
+      entityModel: "Coupon",
+      metadata: {
+        couponId: coupon.couponId,
+        code: coupon.code,
+        discountType: coupon.discountType,
+        discountValue: coupon.discountValue,
+        createdBy: employee?.email || null,
+      },
+    });
+  } catch (err) {
+    console.error("Notification failed on delete coupon:", err.message);
+  }
 
   return coupon;
 };
