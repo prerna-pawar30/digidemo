@@ -19,32 +19,35 @@ export const createEmployeeService = async (data, adminEmail) => {
     email,
     password,
     personalEmail,
-    role,
-    permission
+    role: rawRole,      // ✅ destructure as rawRole to avoid const conflict
+    permission,
   } = data;
+
+  const role = Number(rawRole); // ✅ now safely convert to number
 
   /* Check existing employee */
   const existingEmployee = await Employee.findOne({ email });
   if (existingEmployee) {
-    throw new Error("EMPLOYEE_ALREADY_EXISTS");
+    const err = new Error("EMPLOYEE_ALREADY_EXISTS");
+    err.statusCode = 400;
+    throw err;
   }
+
   /* Check admin */
-  const admin = await Employee.findOne({
-    email: adminEmail,
-  });
+  const admin = await Employee.findOne({ email: adminEmail, isDeleted: false });
   if (!admin) {
-    throw new Error("UNAUTHORIZED_ADMIN");
+    const err = new Error("UNAUTHORIZED_ADMIN");
+    err.statusCode = 401;
+    throw err;
   }
+
+  /* Assign permissions */
   let assignedPermissions = [];
 
   if (role === 0 || role === 1) {
-    // Fetch ALL permissions from the Permission collection
-    const allPermissions = await Permission.find({}, "permissionId").lean();
-
-    // Map to their unique permissionId values
-    assignedPermissions = allPermissions.map((p) => p.permissionId);
+    const allPermissions = await Permission.find({}, "name").lean();
+    assignedPermissions = allPermissions.map((p) => p.name); // all 44
   } else if (permission) {
-    // For other roles, use the single permission passed in (if any)
     assignedPermissions = [permission];
   }
 
@@ -57,53 +60,50 @@ export const createEmployeeService = async (data, adminEmail) => {
     password,
     personalEmail,
     role,
-    permissions: assignedPermissions,  // ← all permissionIds for role 0/1
+    permissions: assignedPermissions,
     createdBy: adminEmail,
     isNewEmployee: true,
   });
 
   /* Send welcome email */
   const htmlBody = employeeWelcomeEmail(firstName, email, password);
-  await sendZohoMail(
-    personalEmail,
-    "Login to your Company Account",
-    htmlBody
-  );
+  await sendZohoMail(personalEmail, "Login to your Company Account", htmlBody);
 
   /* Permission audit */
-  try{
-  await PermissionAudit.create({
-    permissionAuditId: uuidv6(),
-    actionBy: admin._id,
-    actionByEmail: admin.email,
-    actionFor: newEmployee._id,
-    action: newEmployee.email,
-    permission: permission || "create_employee",
-    actionType: "Create",
-  });
-}catch(error){
-  console.log("error to audit log on create employee")
-}
+  try {
+    await PermissionAudit.create({
+      permissionAuditId: uuidv6(),
+      actionBy: admin._id,
+      actionByEmail: admin.email,
+      actionFor: newEmployee._id,
+      action: newEmployee.email,
+      permission: permission || "create_employee",
+      actionType: "Create",
+    });
+  } catch (error) {
+    console.error("Audit log failed on create employee:", error.message);
+  }
 
-    /* ---------- SEND NOTIFICATION ---------- */
-try{
-  await sendNotification({
-    sender: admin._id,
-    permission: "employee.listing.read",
-    title: "New Employee Created",
-    message: `${firstName} ${lastName} has been added as ${role}`,
-    type: "EMPLOYEE_CREATED",
-    entityId: newEmployee._id,
-    entityModel: "Employee",
-    metadata: {
-      employeeName: `${firstName} ${lastName}`,
-      employeeEmail: email,
-      role,
-    },
-  });
-}catch(error){
-    console.log("error to send notification on create employee")
-}
+  /* Send notification */
+  try {
+    await sendNotification({
+      sender: admin._id,
+      permission: "employee.listing.read",
+      title: "New Employee Created",
+      message: `${firstName} ${lastName} has been added as role ${role}`,
+      type: "EMPLOYEE_CREATED",
+      entityId: newEmployee._id,
+      entityModel: "Employee",
+      metadata: {
+        employeeName: `${firstName} ${lastName}`,
+        employeeEmail: email,
+        role,
+      },
+    });
+  } catch (error) {
+    console.error("Notification failed on create employee:", error.message);
+  }
+
   return newEmployee;
 };
 

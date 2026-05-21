@@ -72,7 +72,6 @@ export const getYTDocService = async ({ page = 1, limit = 10, skip = 0 }) => {
   /* ---------- EDGE CASE: empty videos ---------- */
   if (!Array.isArray(doc.videos) || doc.videos.length === 0) {
     return {
-      videos: [],
       pagination: {
         totalItems: 0,
         totalPages: 0,
@@ -81,6 +80,7 @@ export const getYTDocService = async ({ page = 1, limit = 10, skip = 0 }) => {
         prevPage: null,
         limit: limitNum,
       },
+      videos: [],
     };
   }
 
@@ -99,7 +99,6 @@ export const getYTDocService = async ({ page = 1, limit = 10, skip = 0 }) => {
   const paginatedVideos = doc.videos.slice(skipNum, skipNum + limitNum);
 
   const result = {
-    videos: paginatedVideos,
     pagination: {
       totalItems,
       totalPages,
@@ -108,6 +107,7 @@ export const getYTDocService = async ({ page = 1, limit = 10, skip = 0 }) => {
       prevPage: pageNum > 1 ? pageNum - 1 : null,
       limit: limitNum,
     },
+    videos: paginatedVideos,
   };
 
   /* ---------- STORE CACHE ---------- */
