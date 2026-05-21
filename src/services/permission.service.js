@@ -78,14 +78,10 @@ await Employee.updateMany(
    GET ALL PERMISSIONS
 ========================================================= */
 export const getAllPermissionsService = async ({ page, limit }) => {
-
-  const skip = (pageNumber - 1) * limitNumber;
-
   const [permissions, totalItems] = await Promise.all([
     Permission.find()
       .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limitNumber)
+      .limit(limit)
       .lean(),
     Permission.countDocuments(),
   ]);
@@ -96,19 +92,17 @@ export const getAllPermissionsService = async ({ page, limit }) => {
     throw err;
   }
 
-  const totalPages = Math.ceil(totalItems / limitNumber);
-
-  const pagination = {
-    totalItems,
-    totalPages,
-    currentPage: pageNumber,
-    nextPage: pageNumber < totalPages ? pageNumber + 1 : null,
-    prevPage: pageNumber > 1 ? pageNumber - 1 : null,
-    limit: limitNumber,
-  };
+  const totalPages = Math.ceil(totalItems / limit);
 
   return {
-    pagination,
+    pagination: {
+      totalItems,
+      totalPages,
+      currentPage: page,
+      nextPage: page < totalPages ? page + 1 : null,
+      prevPage: page > 1 ? page - 1 : null,
+      limit,
+    },
     count: permissions.length,
     permissions,
   };

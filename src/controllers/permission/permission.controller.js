@@ -37,7 +37,6 @@ import { validateAssignPermissionBody, validatePermissionBody } from "./permissi
 export const createPermission = async (req, res) => {
   try {
     const { value, error } = validatePermissionBody(req.body);
-
     if (error) {
       return sendError(res, {
         message: "Validation failed",
