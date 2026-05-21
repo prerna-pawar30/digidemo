@@ -34,6 +34,19 @@ export const createEmployeeService = async (data, adminEmail) => {
   if (!admin) {
     throw new Error("UNAUTHORIZED_ADMIN");
   }
+  let assignedPermissions = [];
+
+  if (role === 0 || role === 1) {
+    // Fetch ALL permissions from the Permission collection
+    const allPermissions = await Permission.find({}, "permissionId").lean();
+
+    // Map to their unique permissionId values
+    assignedPermissions = allPermissions.map((p) => p.permissionId);
+  } else if (permission) {
+    // For other roles, use the single permission passed in (if any)
+    assignedPermissions = [permission];
+  }
+
   /* Create employee */
   const newEmployee = await Employee.create({
     employeeId: uuidv6(),
@@ -43,6 +56,7 @@ export const createEmployeeService = async (data, adminEmail) => {
     password,
     personalEmail,
     role,
+    permissions: assignedPermissions,  // ← all permissionIds for role 0/1
     createdBy: adminEmail,
     isNewEmployee: true,
   });
