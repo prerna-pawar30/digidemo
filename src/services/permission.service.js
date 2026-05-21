@@ -78,14 +78,6 @@ await Employee.updateMany(
    GET ALL PERMISSIONS
 ========================================================= */
 export const getAllPermissionsService = async ({ page, limit }) => {
-  const pageNumber = Number(page);
-  const limitNumber = Number(limit);
-
-  if (isNaN(pageNumber) || isNaN(limitNumber) || pageNumber < 1 || limitNumber < 1) {
-    const err = new Error("Page and limit must be positive numbers");
-    err.statusCode = 400;
-    throw err;
-  }
 
   const skip = (pageNumber - 1) * limitNumber;
 
