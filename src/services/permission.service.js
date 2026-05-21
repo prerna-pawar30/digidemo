@@ -34,11 +34,12 @@ export const createPermissionService = async (data, currentUser) => {
     createdBy: admin._id,
   });
 
-  /* ---------- AUTO ASSIGN TO SUPER ADMIN ---------- */
-  await Employee.updateMany(
-    { role: "0" },
-    { $addToSet: { permissions: name } }
-  );
+  /* ---------- AUTO ASSIGN TO SUPER ADMIN & ADMIN ---------- */
+await Employee.updateMany(
+  { role: { $in: [0, 1] } },
+  { $addToSet: { permissions: name } }
+);
+
 
   /* ---------- AUDIT LOG ---------- */
   const audit = await PermissionAudit.create({
