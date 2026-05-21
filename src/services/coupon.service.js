@@ -50,7 +50,6 @@ export const createCouponService = async ({ data, employee, permission }) => {
   const coupon = await Coupon.create({
     ...data,
     couponId: uuidv6(),
-    code: data.code.toUpperCase(),
   });
 
   /* ---------- CLEAR CACHE ---------- */

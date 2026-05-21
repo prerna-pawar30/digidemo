@@ -67,7 +67,7 @@ import { cancelLeaveRequestService, createHolidayService, getAllAttendancesServi
 export const punchIn = async (req, res) => {
   try {
     // optional: if you have validation schema, plug here
-    if (!req.user?.email) {
+    if (!req.user?.email){
       return sendError(res, {
         message: "Unauthorized",
         statusCode: 401,
