@@ -2,7 +2,6 @@ import Employee from "../../models/manage/employee.model.js";
 import { sendSuccess } from "../../helpers/response.helper.js";
 import { sendError, handleError } from "../../helpers/error.helper.js";
 import { getPagination} from "../../helpers/pagination.helper.js";
-import { v6 as uuidv6 } from "uuid";
 import {
   createJobValidator,
   updateJobValidator,
@@ -16,7 +15,6 @@ import {
   getJobBySlugService,
   deleteJobService,
 } from "../../services/job.service.js";
-import { PermissionAudit } from "../../models/manage/permissionaudit.model.js";
 
 /**
  * @function createJob
@@ -110,17 +108,6 @@ export const createJob = async (req, res) => {
       data: value,
       employee,
     });
-      /* ---------- AUDIT ---------- */
-    await PermissionAudit.create({
-      permissionAuditId: uuidv6(),
-      actionBy: employee._id,
-      actionByEmail: employee.email,
-      actionFor: job._id,
-      actionForEmail: null,
-      action: job.title,
-      permission: value.permission || "career.job.create",
-      actionType: "Create",
-    });
     return sendSuccess(res, job, 201, "Job created successfully");
   } catch (error) {
     return handleError(res, error);
@@ -199,8 +186,18 @@ export const createJob = async (req, res) => {
  *   message: "Employee not found"
  * }
  */
+
 export const updateJob = async (req, res) => {
   try {
+    const { jobId } = req.params;
+    if (!jobId) {
+      return sendError(res, {
+        message: "jobId is required",
+        statusCode: 400,
+        errorCode: "VALIDATION_ERROR",
+      });
+    }
+
     const { value, error } = updateJobValidator.validate(req.body, {
       abortEarly: false,
     });
@@ -225,24 +222,10 @@ export const updateJob = async (req, res) => {
     }
 
     const job = await updateJobService({
-      jobId: req.params.jobId,
+      jobId,
       data: value,
       employee,
     });
-
-         /* ---------- AUDIT ---------- */
-    await PermissionAudit.create({
-      permissionAuditId: uuidv6(),
-      actionBy: employee._id,
-      actionByEmail: employee.email,
-      actionFor: job._id,
-      actionForEmail: null,
-      action: job.title,
-      permission: value.permission || "career.job.update",
-      actionType: "Update",
-    });
-
-
     return sendSuccess(res, job, 200, "Job updated successfully");
   } catch (error) {
     return handleError(res, error);
@@ -300,10 +283,10 @@ export const updateJob = async (req, res) => {
  *   message: "Internal server error"
  * }
  */
+
 export const getManageJobs = async (req, res) => {
   try {
     const pagination = getPagination(req.query);
-
     const {
       search,
       status = "all",
@@ -324,25 +307,10 @@ export const getManageJobs = async (req, res) => {
         experienceLevel,
       },
     });
-
-  /* ---------- PAGINATION META ---------- */
-    const totalItems = result.totalJobs;
-    const currentPage = pagination.page;
-    const totalPages = Math.ceil(totalItems / pagination.limit);
-
-    const paginationMeta = {
-      totalItems,
-      totalPages,
-      currentPage,
-      nextPage: currentPage < totalPages ? currentPage + 1 : null,
-      prevPage: currentPage > 1 ? currentPage - 1 : null,
-      limit: pagination.limit,
-    };
-
     return sendSuccess(
       res,
       {
-        pagination: paginationMeta,
+        pagination: result.pagination,
         jobs: result.jobs,
       },
       200,
@@ -416,25 +384,10 @@ export const getCareerJobs = async (req, res) => {
         experienceLevel,
       },
     });
-
-    /* ---------- PAGINATION META ---------- */
-    const totalItems = result.totalJobs;
-    const currentPage = pagination.page;
-    const totalPages = Math.ceil(totalItems / pagination.limit);
-
-    const paginationMeta = {
-      totalItems,
-      totalPages,
-      currentPage,
-      nextPage: currentPage < totalPages ? currentPage + 1 : null,
-      prevPage: currentPage > 1 ? currentPage - 1 : null,
-      limit: pagination.limit,
-    };
-
     return sendSuccess(
       res,
       {
-        pagination: paginationMeta,
+        pagination: result.pagination,
         jobs: result.jobs,
       },
       200,
@@ -480,10 +433,19 @@ export const getCareerJobs = async (req, res) => {
  *   message: "Internal server error"
  * }
  */
+
 export const getJobById = async (req, res) => {
   try {
+    const { jobId } = req.params;
+    if (!jobId) {
+      return sendError(res, {
+        message: "jobId is required",
+        statusCode: 400,
+        errorCode: "VALIDATION_ERROR",
+      });
+    }
     const job = await getJobByIdService({
-      jobId: req.params.jobId,
+      jobId,
     });
 
     return sendSuccess(res, job, 200, "Job fetched successfully");
@@ -527,12 +489,19 @@ export const getJobById = async (req, res) => {
  *   message: "Internal server error"
  * }
  */
+
 export const getJobBySlug = async (req, res) => {
   try {
-    const job = await getJobBySlugService({
-      slug: req.params.slug,
-    });
+    const { slug } = req.params;
+    if (!slug) {
+      return sendError(res, {
+        message: "slug is required",
+        statusCode: 400,
+        errorCode: "VALIDATION_ERROR",
+      });
+    }
 
+    const job = await getJobBySlugService({ slug });
     return sendSuccess(res, job, 200, "Job fetched successfully");
   } catch (error) {
     return handleError(res, error);
@@ -576,11 +545,19 @@ export const getJobBySlug = async (req, res) => {
  *   message: "Employee not found"
  * }
  */
+
 export const deleteJob = async (req, res) => {
   try {
-    /* ---------- FETCH EMPLOYEE ---------- */
-    const employee = await Employee.findOne({ email: req.user.email });
+    const { jobId } = req.params;
+    if (!jobId) {
+      return sendError(res, {
+        message: "jobId is required",
+        statusCode: 400,
+        errorCode: "VALIDATION_ERROR",
+      });
+    }
 
+    const employee = await Employee.findOne({ email: req.user.email });
     if (!employee) {
       return sendError(res, {
         message: "Employee not found",
@@ -588,22 +565,9 @@ export const deleteJob = async (req, res) => {
         errorCode: "EMPLOYEE_NOT_FOUND",
       });
     }
-    /* ---------- DELETE JOB ---------- */
-    const job = await deleteJobService({
-      jobId: req.params.jobId,
-    });
 
-    /* ---------- AUDIT ---------- */
-    await PermissionAudit.create({
-      permissionAuditId: uuidv6(),
-      actionBy: employee._id,
-      actionByEmail: employee.email,
-      actionFor: job?._id || null,
-      actionForEmail: null,
-      action: job?.title || "Job deleted",
-      permission: req.body.permission || "career.job.delete",
-      actionType: "Delete",
-    });
+    await deleteJobService({ jobId, employee });
+
     return sendSuccess(res, null, 200, "Job deleted successfully");
   } catch (error) {
     return handleError(res, error);

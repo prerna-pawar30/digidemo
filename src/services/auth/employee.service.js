@@ -23,7 +23,6 @@ export const createEmployeeService = async (data, adminEmail) => {
   } = data;
 
   /* Check existing employee */
-
   const existingEmployee = await Employee.findOne({ email });
   if (existingEmployee) {
     throw new Error("EMPLOYEE_ALREADY_EXISTS");
@@ -32,13 +31,10 @@ export const createEmployeeService = async (data, adminEmail) => {
   const admin = await Employee.findOne({
     email: adminEmail,
   });
-
   if (!admin) {
     throw new Error("UNAUTHORIZED_ADMIN");
   }
-
   /* Create employee */
-
   const newEmployee = await Employee.create({
     employeeId: uuidv6(),
     firstName,
@@ -60,6 +56,7 @@ export const createEmployeeService = async (data, adminEmail) => {
   );
 
   /* Permission audit */
+  try{
   await PermissionAudit.create({
     permissionAuditId: uuidv6(),
     actionBy: admin._id,
@@ -69,9 +66,12 @@ export const createEmployeeService = async (data, adminEmail) => {
     permission: permission || "create_employee",
     actionType: "Create",
   });
+}catch(error){
+  console.log("error to audit log on create employee")
+}
 
     /* ---------- SEND NOTIFICATION ---------- */
-
+try{
   await sendNotification({
     sender: admin._id,
     permission: "employee.listing.read",
@@ -86,6 +86,9 @@ export const createEmployeeService = async (data, adminEmail) => {
       role,
     },
   });
+}catch(error){
+    console.log("error to send notification on create employee")
+}
   return newEmployee;
 };
 
@@ -173,7 +176,6 @@ export const forgotEmployeePasswordService = async (email) => {
     "Reset Your Password",
     resetPasswordTemplate(resetURL, employee.firstName)
   );
-
 };
 
 export const getEmployeeService = async (email) => {
@@ -216,6 +218,7 @@ export const deleteEmployeeService = async (
   employee.isDeleted = true;
   employee.deletedAt = new Date();
   await employee.save();
+  try{
   await PermissionAudit.create({
     permissionAuditId: uuidv6(),
     actionBy: admin._id,
@@ -227,6 +230,31 @@ export const deleteEmployeeService = async (
     permission: permission?.toLowerCase() || "delete_employee",
     actionType: "Delete"
   });
+}catch(error){
+  console.log("error in delete of employee Audit log");
+}
+
+  /* ---------- SEND NOTIFICATION ---------- */
+try{
+  await sendNotification({
+    sender: admin._id,
+    permission: "employee.listing.read",
+    title: "Employee Deleted",
+    message: `${employee.firstName} ${employee.lastName} account deleted by ${admin.firstName} ${admin.lastName}`,
+    type: "EMPLOYEE_DELETED",
+    entityId: employee._id,
+    entityModel: "Employee",
+    metadata: {
+      employeeId: employee.employeeId,
+      employeeName: `${employee.firstName} ${employee.lastName}`,
+      employeeEmail: employee.email,
+      deletedBy: `${admin.firstName} ${admin.lastName}`,
+      deletedByEmail: admin.email
+    }
+  });
+}catch(error){
+  console.log("error in delete employee notification send");
+}
   return {
     employeeId: employee.employeeId
   };
@@ -238,14 +266,11 @@ export const updateEmployeeRoleService = async (
   adminEmail,
   permission
 ) => {
-console.log("Updating role for:", employeeEmail, "to role:", role, "by admin:", adminEmail);
   /* Find admin */
-
   const admin = await Employee.findOne({
     email: adminEmail,
     isDeleted: false
   });
-console.log("Admin found:", admin);
   if (!admin) {
     throw new Error("UNAUTHORIZED_ACTION");
   }
@@ -256,20 +281,19 @@ console.log("Admin found:", admin);
     email: employeeEmail,
     isDeleted: false
   });
-console.log("Employee found:", employee);
-
   if (!employee) {
     throw new Error("EMPLOYEE_NOT_FOUND");
   }
 
   /* Update role */
+  const oldRole = employee.role
 
   employee.role = role;
 
   await employee.save();
 
   /* Save permission audit */
-
+try{
   await PermissionAudit.create({
     permissionAuditId: uuidv6(),
     actionBy: admin._id,
@@ -281,6 +305,40 @@ console.log("Employee found:", employee);
     permission: permission?.toLowerCase(),
     actionType: "Update"
   });
+}catch(error){
+  console.log("error in update role of employee Audit log");
+}
+
+    /* ---------- SEND NOTIFICATION ---------- */
+try{
+    await sendNotification({
+      sender: admin._id,
+      permission: "employee.listing.read",
+  
+      title: "Employee Role Updated",
+  
+      message: `${employee.firstName} ${employee.lastName} role updated from ${oldRole} to ${role}`,
+  
+      type: "EMPLOYEE_ROLE_UPDATED",
+  
+      entityId: employee._id,
+      entityModel: "Employee",
+  
+      metadata: {
+        employeeId: employee.employeeId,
+        employeeName: `${employee.firstName} ${employee.lastName}`,
+        employeeEmail: employee.email,
+  
+        oldRole,
+        newRole: role,
+
+      updatedBy: `${admin.firstName} ${admin.lastName}`,
+      updatedByEmail: admin.email
+    }
+  })
+}catch(error){
+  console.log("error in update role notification of employee");
+}
 
   return {
     email: employee.email,

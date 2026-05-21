@@ -1,7 +1,8 @@
 import Job from "../models/manage/job.model.js";
 import JobApplication from "../models/ecommarace/jobApplication.model.js";
 import { v6 as uuidv6 } from "uuid";
-
+import { sendNotification } from "./notification.service.js";
+import { clearJobCache } from "./job.service.js";
 
 export const submitJobApplicationService = async ({
   data,
@@ -53,6 +54,30 @@ export const submitJobApplicationService = async ({
     additionalFiles,
     source: data.source || "career_page",
   });
+    /* ---------- CLEAR JOB CACHE ---------- */
+    await clearJobCache();
+  /* ---------- NOTIFICATION ---------- */
+  try {
+    await sendNotification({
+      sender: null,
+      permission: career.application.read,
+      title: "New Job Application Received",
+      message: `${data.firstName} ${data.lastName} applied for "${job.title}"`,
+      type: "APPLICATION_SUBMITTED",
+      entityId: application._id,
+      entityModel: "JobApplication",
+      metadata: {
+        applicationId: application.applicationId,
+        jobId: job.jobId,
+        jobTitle: job.title,
+        applicantName: `${data.firstName} ${data.lastName}`,
+        applicantEmail: data.email.toLowerCase(),
+        source: application.source,
+      },
+    });
+  } catch (err) {
+    console.error("Notification failed on submit application:", err.message);
+  }
 
   return application;
 };
@@ -98,17 +123,17 @@ export const updateJobApplicationService = async ({
     throw new Error("Application not found");
   }
 
-  /* ---------- DUPLICATE CHECK ---------- */
-  // const existingApplication = await JobApplication.findOne({
-  //   _id: { $ne: application._id },
-  //   jobId: data.jobId,
-  //   "applicant.email": data.email.toLowerCase(),
-  //   isDeleted: false,
-  // });
+   /* ---------- DUPLICATE CHECK ---------- */
+   const duplicateApplication = await JobApplication.findOne({
+    _id: { $ne: application._id },
+    jobId: data.jobId,
+    "applicant.email": data.email.toLowerCase(),
+    isDeleted: false,
+  });
 
-  // if (existingApplication) {
-  //   throw new Error("You have already applied for this job");
-  // }
+  if (duplicateApplication) {
+    throw new Error("You have already applied for this job");
+  }
 
   /* ---------- UPDATE DATA ---------- */
   application.job = job._id;
@@ -136,6 +161,8 @@ export const updateJobApplicationService = async ({
   application.source = data.source || "career_page";
 
   await application.save();
+ /* ---------- CLEAR JOB CACHE ---------- */
+  await clearJobCache();
 
   return application;
 };
@@ -169,19 +196,28 @@ export const getApplicationsService = async ({ pagination, filters }) => {
     ];
   }
 
-  const totalApplications = await JobApplication.countDocuments(query);
+  const [applications, totalItems] = await Promise.all([
+    JobApplication.find(query)
+      .populate("job", "jobId title department location employmentType workplaceType status")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+    JobApplication.countDocuments(query),
+  ]);
 
-  const applications = await JobApplication.find(query)
-    .populate("job", "jobId title department location employmentType workplaceType status")
-    .sort({ createdAt: -1 })
-    .skip(skip)
-    .limit(limit)
-    .lean();
+  const totalPages = Math.ceil(totalItems / limit);
 
   return {
     applications,
-    totalApplications,
-    currentPage: page,
+    pagination: {
+      totalItems,
+      totalPages,
+      currentPage: page,
+      nextPage: page < totalPages ? page + 1 : null,
+      prevPage: page > 1 ? page - 1 : null,
+      limit,
+    },
   };
 };
 
@@ -231,6 +267,9 @@ export const updateApplicationStatusService = async ({
   }
 
   await application.save();
+  /* ---------- CLEAR JOB CACHE ---------- */
+  await clearJobCache();
+
   return application;
 };
 

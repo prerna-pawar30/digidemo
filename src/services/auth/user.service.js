@@ -7,9 +7,7 @@ import { verifyEmailTemplate } from "../../config/templates/verifyUserEmail.js";
 import { resetPasswordTemplate } from "../../config/templates/resetPasswordTemplate.js";
 import { sendZohoMail } from "../ZohoEmail/zohoMail.service.js";
 import jwt from "jsonwebtoken";
-import { uploadToS3 } from "../awsS3.service.js";
-import Order from "../../models/ecommarace/order.model.js";
-import Cart from "../../models/ecommarace/cart.model.js";
+import { uploadToS3,deleteFromS3 } from "../awsS3.service.js";
 import { sendNotification } from "../notification.service.js";
 
 
@@ -37,22 +35,25 @@ export const registerUserService = async (data) => {
   const verifyUrl = `${process.env.FRONTEND_URL}/verify-email/${token}`;
   const htmlBody = verifyEmailTemplate(verifyUrl, firstName);
   await sendZohoMail(email, "Verify your Email", htmlBody);
-
-  /* ---------- SEND NOTIFICATION ---------- */
-  await sendNotification({
-    permission: "customer.listing.read",
-    title: "New User Registered",
-    message: `${firstName} ${lastName} has registered successfully`,
-    type: "USER_REGISTERED",
-    entityId: user._id,
-    entityModel: "User",
-    metadata: {
-      userId: user.userId,
-      fullName: `${firstName} ${lastName}`,
-      email: user.email,
-      instituteName: user.instituteName || null,
-    },
-  });
+   /* ---------- SEND NOTIFICATION ---------- */
+   try {
+    await sendNotification({
+      permission: "customer.listing.read",
+      title: "New User Registered",
+      message: `${firstName} ${lastName} has registered successfully`,
+      type: "USER_REGISTERED",
+      entityId: user._id,
+      entityModel: "User",
+      metadata: {
+        userId: user.userId,
+        fullName: `${firstName} ${lastName}`,
+        email: user.email,
+        instituteName: user.instituteName || null,
+      },
+    });
+  } catch (notifyErr) {
+    console.error("Notification failed:", notifyErr.message);
+  }
   return user;
 };
 
@@ -224,7 +225,7 @@ export const updateUserProfileService = async (email, updates, files) => {
 };
 
 export const changePasswordService = async (userId, oldPassword, newPassword) => {
-  const user = await User.findById(userId).select("+password");
+  const user = await User.findOne(userId).select("+password");
   if (!user) {
     throw new Error("USER_NOT_FOUND");
   }
@@ -234,7 +235,6 @@ export const changePasswordService = async (userId, oldPassword, newPassword) =>
   }
   user.password = newPassword;
   user.passwordChangedAt = new Date();
-  // invalidate refresh tokens if stored
   user.refreshToken = null;
   await user.save();
   return true;

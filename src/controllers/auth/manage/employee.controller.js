@@ -184,20 +184,15 @@ export const loginEmployee = async (req, res) => {
  */
 export const logoutEmployee = async (req, res) => {
   try {
-
     res.clearCookie("refreshToken", {
       httpOnly: true,
       secure: true,
       sameSite: "strict",
       path: "/",
     });
-
     return sendSuccess(res, null, 200, "Logout successful");
-
   } catch (error) {
-
     return handleError(res, error);
-
   }
 };
 
@@ -297,7 +292,7 @@ export const verifyEmail = async (req, res) => {
     await verifyEmailService(token);
     return res.redirect(`${process.env.FRONTEND_URL}/login`);
   } catch (error) {
-  console.error("Email Verification Error:", error);
+    console.error("Email Verification Error:", error);
     return handleError(res, error);
   }
 };
