@@ -54,7 +54,7 @@ await Employee.updateMany(
   try {
     await sendNotification({
       sender: admin._id,
-      permission: "permission.create",
+      permission: "permission.listing.create",
       title: "Permission Created",
       message: `Permission "${permission.name}" was created by ${admin.email}`,
       type: "PERMISSION_CREATED",
@@ -154,7 +154,7 @@ export const deletePermissionService = async (
   try {
     await sendNotification({
       sender: admin._id,
-      permission: "permission.delete",
+      permission: "permission.listing.delete",
       title: "Permission Deleted",
       message: `Permission "${permission.name}" was deleted by ${admin.email}`,
       type: "PERMISSION_DELETED",
