@@ -97,6 +97,7 @@ export const getBlogBySlug = async (req, res) => {
 
 export const updateBlog = async (req, res) => {
   try {
+    const featuredImage = req.files?.featuredImage?.[0];
     const { value, error } = updateBlogValidator.validate(req.body, {
       abortEarly: false,
       stripUnknown: true,
@@ -123,7 +124,7 @@ export const updateBlog = async (req, res) => {
 
     const blog = await updateBlogService({
       blogId: req.params.blogId,
-      data: value,
+      data: value,featuredImage,
       employee,
     });
 

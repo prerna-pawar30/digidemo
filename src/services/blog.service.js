@@ -74,13 +74,11 @@ export const createBlogService = async ({ data,featuredImage, employee }) => {
     throw error;
   }
     /* ---------- UPLOAD FEATURED IMAGE ---------- */
-
     featuredUpload =
       await uploadToS3(
         featuredImage,
         "blogs/featured"
-      );
-
+      )
   const slug = `${slugify(data.title, {
     lower: true,
     strict: true,
@@ -248,7 +246,7 @@ export const getBlogBySlugService = async ({ slug }) => {
    UPDATE BLOG
 ========================================================= */
 export const updateBlogService = async ({ blogId, data,featuredImage, employee }) => {
-  let featuredUpload = null;
+  try{
   if (!featuredImage) {
     const error = new Error(
       "Featured image is required"
@@ -278,6 +276,19 @@ export const updateBlogService = async ({ blogId, data,featuredImage, employee }
       error.errorCode = "SLUG_ALREADY_EXISTS";
       throw error;
     }
+  }
+
+  /* ---------- FEATURED IMAGE ---------- */
+
+  if (featuredImage) {
+    if (blog.featuredImage) {
+      await deleteFromS3(blog.featuredImage);
+    }
+    const uploaded = await uploadToS3(
+      featuredImage,
+      "blogs/featured"
+    );
+    blog.featuredImage = uploaded.url;
   }
 
   const oldData = {
@@ -335,7 +346,16 @@ export const updateBlogService = async ({ blogId, data,featuredImage, employee }
   }
 
   return blog;
-};
+}catch(error){
+   /* ---------- ROLLBACK ---------- */
+   if (featuredUpload?.url) {
+    await deleteFromS3(
+      featuredUpload.url
+    );
+  }
+  throw error;
+}
+}
 
 /* =========================================================
    DELETE BLOG

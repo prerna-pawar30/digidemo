@@ -8,10 +8,8 @@ export const createBlogValidator = Joi.object({
   images: Joi.array().items(Joi.string()).default([]),
   category: Joi.string().trim().optional().allow(""),
   tags: Joi.array().items(Joi.string()).default([]),
-  metaTitle: Joi.string().trim().optional().allow(""),
   metaDescription: Joi.string().trim().optional().allow(""),
   keywords: Joi.array().items(Joi.string()).default([]),
-  canonicalUrl: Joi.string().trim().optional().allow(""),
   status: Joi.string().valid("draft", "published").default("draft"),
 });
 export const updateBlogValidator = Joi.object({
@@ -23,12 +21,7 @@ export const updateBlogValidator = Joi.object({
   images: Joi.array().items(Joi.string()).optional(),
   category: Joi.string().trim().optional().allow(""),
   tags: Joi.array().items(Joi.string()).optional(),
-
-
-  metaTitle: Joi.string().trim().optional().allow(""),
   metaDescription: Joi.string().trim().optional().allow(""),
   keywords: Joi.array().items(Joi.string()).optional(),
-  canonicalUrl: Joi.string().trim().optional().allow(""),
-
   status: Joi.string().valid("draft", "published").optional(),
 });
