@@ -3,40 +3,63 @@ import { getIO } from "../sockets/socket.js";
 import { onlineUsers } from "../sockets/socket.js";
 import Notification from "../models/manage/notification.model.js";
 
-export const getNotificationsService =
-  async ({
-    employeeId,
-    page = 1,
-    limit = 10,
-  }) => {
-    const skip = (page - 1) * limit;
+export const getNotificationsService = async ({
+  employeeId,
+  page = 1,
+  limit = 10,
+}) => {
 
-    const notifications =
-      await Notification.find({
-        receiver: employeeId,
-      })
-        .populate("sender", "name email")
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit);
+  page = Number(page) || 1;
+  limit = Number(limit) || 10;
 
-    const total =
-      await Notification.countDocuments({
-        receiver: employeeId,
-      });
+  const skip = (page - 1) * limit;
 
-    return {
-      notifications,
-      pagination: {
-        page: Number(page),
-        limit: Number(limit),
-        total,
-        pages: Math.ceil(total / limit),
-      },
-    };
+  /* ---------- GET NOTIFICATIONS ---------- */
+
+  const notifications = await Notification.find({
+    receiver: employeeId,
+  })
+    .populate("sender", "name email")
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit);
+
+  /* ---------- TOTAL ITEMS ---------- */
+
+  const totalItems =
+    await Notification.countDocuments({
+      receiver: employeeId,
+    });
+
+  /* ---------- TOTAL PAGES ---------- */
+
+  const totalPages =
+    Math.ceil(totalItems / limit);
+
+  /* ---------- NEXT PAGE ---------- */
+  const nextPage =
+    page < totalPages
+      ? page + 1
+      : null;
+  /* ---------- PREVIOUS PAGE ---------- */
+  const prevPage =
+    page > 1
+      ? page - 1
+      : null;
+  return {
+    notifications,
+    pagination: {
+      totalItems,
+      totalPages,
+      currentPage: page,
+      nextPage,
+      prevPage,
+      limit,
+    },
   };
+};
 
-  
+
 export const getUnreadNotificationCountService =
   async ({ employeeId }) => {
     return Notification.countDocuments({

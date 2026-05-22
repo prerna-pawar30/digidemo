@@ -19,7 +19,7 @@ const router = express.Router();
 /* ---------- USER ---------- */
 
 router.get(
-  "/",
+  "/get",
   auth,
   getNotifications
 );
