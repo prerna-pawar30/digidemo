@@ -9,7 +9,7 @@ export const createBlogValidator = Joi.object({
   images: Joi.array().items(Joi.string()).default([]),
   category: Joi.string().trim().optional().allow(""),
   tags: Joi.array().items(Joi.string()).default([]),
-  featuredImage: Joi.string().trim().required().allow(""),
+ 
 
   metaTitle: Joi.string().trim().optional().allow(""),
   metaDescription: Joi.string().trim().optional().allow(""),
@@ -28,7 +28,7 @@ export const updateBlogValidator = Joi.object({
   images: Joi.array().items(Joi.string()).optional(),
   category: Joi.string().trim().optional().allow(""),
   tags: Joi.array().items(Joi.string()).optional(),
-  featuredImage: Joi.string().trim().optional().allow(""),
+
 
   metaTitle: Joi.string().trim().optional().allow(""),
   metaDescription: Joi.string().trim().optional().allow(""),

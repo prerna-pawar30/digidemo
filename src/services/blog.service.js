@@ -131,6 +131,15 @@ export const createBlogService = async ({ data,featuredImage, employee }) => {
       },
     });
   } catch (err) {
+     /* ---------- ROLLBACK ---------- */
+
+     if (featuredUpload?.url) {
+
+      await deleteFromS3(
+        featuredUpload.url
+      );
+
+    }
     console.error("Notification failed on create blog:", err.message);
   }
 
@@ -238,7 +247,17 @@ export const getBlogBySlugService = async ({ slug }) => {
 /* =========================================================
    UPDATE BLOG
 ========================================================= */
-export const updateBlogService = async ({ blogId, data, employee }) => {
+export const updateBlogService = async ({ blogId, data,featuredImage, employee }) => {
+  let featuredUpload = null;
+  if (!featuredImage) {
+    const error = new Error(
+      "Featured image is required"
+    );
+    error.statusCode = 400;
+    error.errorCode =
+      "VALIDATION_ERROR";
+    throw error;
+  }
   const blog = await Blog.findOne({ blogId, isDeleted: false });
   if (!blog) {
     const error = new Error("Blog not found");
