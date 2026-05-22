@@ -52,11 +52,12 @@ const clearBlogCache = async () => {
    CREATE BLOG
 ========================================================= */
 export const createBlogService = async ({ data,featuredImage, employee }) => {
+  let featuredUpload = null;
+  try{
   const exists = await Blog.findOne({
     $or: [{ title: data.title }, { slug: data.slug }],
     isDeleted: false,
   });
-  let featuredUpload = null;
   if (exists) {
     const error = new Error("Blog already exists with same title or slug");
     error.statusCode = 409;
@@ -131,19 +132,18 @@ export const createBlogService = async ({ data,featuredImage, employee }) => {
       },
     });
   } catch (err) {
-     /* ---------- ROLLBACK ---------- */
-
-     if (featuredUpload?.url) {
-
-      await deleteFromS3(
-        featuredUpload.url
-      );
-
-    }
     console.error("Notification failed on create blog:", err.message);
   }
-
   return blog;
+}catch (error) {
+  /* ---------- ROLLBACK ---------- */
+  if (featuredUpload?.url) {
+    await deleteFromS3(
+      featuredUpload.url
+    );
+  }
+  throw error;
+}
 };
 
 /* =========================================================
