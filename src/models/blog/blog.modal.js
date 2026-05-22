@@ -41,7 +41,9 @@ const blogSchema = new Schema(
 
     category: { type: String, default: "" },
     tags: { type: [String], default: [] },
-
+    featuredImage:{
+      type:String
+    },
     status: {
       type: String,
       enum: ["draft", "published"],

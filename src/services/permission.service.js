@@ -1,16 +1,18 @@
 import Permission from "../models/manage/permission.model.js";
 import Employee from "../models/manage/employee.model.js";
-import {PermissionAudit} from "../models/manage/permissionaudit.model.js";
+import { PermissionAudit } from "../models/manage/permissionaudit.model.js";
 import { v6 as uuidv6 } from "uuid";
 import { getPagination } from "../helpers/pagination.helper.js";
+import { sendNotification } from "./notification.service.js"; // ← ADD THIS
 
-
+/* =========================================================
+   CREATE PERMISSION
+========================================================= */
 export const createPermissionService = async (data, currentUser) => {
   const { name } = data;
 
   /* ---------- AUTH CHECK ---------- */
   const admin = await Employee.findOne({ email: currentUser.email });
-
   if (!admin) {
     const err = new Error("Unauthorized");
     err.statusCode = 401;
@@ -19,7 +21,6 @@ export const createPermissionService = async (data, currentUser) => {
 
   /* ---------- DUPLICATE CHECK ---------- */
   const exists = await Permission.findOne({ name });
-
   if (exists) {
     const err = new Error("Permission already exists");
     err.statusCode = 409;
@@ -33,14 +34,15 @@ export const createPermissionService = async (data, currentUser) => {
     createdBy: admin._id,
   });
 
-  /* ---------- AUTO ASSIGN TO SUPER ADMIN ---------- */
-  await Employee.updateMany(
-    { role: "0" },
-    { $addToSet: { permissions: name } }
-  );
+  /* ---------- AUTO ASSIGN TO SUPER ADMIN & ADMIN ---------- */
+await Employee.updateMany(
+  { role: { $in: [0, 1] } },
+  { $addToSet: { permissions: name } }
+);
+
 
   /* ---------- AUDIT LOG ---------- */
-  await PermissionAudit.create({
+  const audit = await PermissionAudit.create({
     permissionAuditId: uuidv6(),
     actionBy: admin._id,
     actionByEmail: admin.email,
@@ -48,26 +50,38 @@ export const createPermissionService = async (data, currentUser) => {
     action: "create",
   });
 
+  /* ---------- NOTIFICATION ---------- */
+  try {
+    await sendNotification({
+      sender: admin._id,
+      permission: "permission.listing.create",
+      title: "Permission Created",
+      message: `Permission "${permission.name}" was created by ${admin.email}`,
+      type: "PERMISSION_CREATED",
+      entityId: permission._id,
+      entityModel: "Permission",
+      metadata: {
+        permissionId: permission.permissionId,
+        permissionName: permission.name,
+        createdBy: admin.email,
+        auditId: audit._id,
+      },
+    });
+  } catch (err) {
+    console.error("Notification failed on permission create:", err.message);
+  }
+
   return permission;
 };
 
+/* =========================================================
+   GET ALL PERMISSIONS
+========================================================= */
 export const getAllPermissionsService = async ({ page, limit }) => {
-  const pageNumber = Number(page);
-  const limitNumber = Number(limit);
-
-  if (pageNumber < 1 || limitNumber < 1) {
-    const err = new Error("Page and limit must be positive numbers");
-    err.statusCode = 400;
-    throw err;
-  }
-
-  const skip = (pageNumber - 1) * limitNumber;
-
-  const [permissions, total] = await Promise.all([
+  const [permissions, totalItems] = await Promise.all([
     Permission.find()
       .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limitNumber)
+      .limit(limit)
       .lean(),
     Permission.countDocuments(),
   ]);
@@ -78,19 +92,25 @@ export const getAllPermissionsService = async ({ page, limit }) => {
     throw err;
   }
 
-  const pagination = getPagination({
-    total,
-    page: pageNumber,
-    limit: limitNumber,
-  });
+  const totalPages = Math.ceil(totalItems / limit);
 
   return {
-    pagination,
+    pagination: {
+      totalItems,
+      totalPages,
+      currentPage: page,
+      nextPage: page < totalPages ? page + 1 : null,
+      prevPage: page > 1 ? page - 1 : null,
+      limit,
+    },
     count: permissions.length,
     permissions,
   };
 };
 
+/* =========================================================
+   DELETE PERMISSION
+========================================================= */
 export const deletePermissionService = async (
   permissionId,
   currentUser,
@@ -98,7 +118,6 @@ export const deletePermissionService = async (
 ) => {
   /* ---------- AUTH CHECK ---------- */
   const admin = await Employee.findOne({ email: currentUser.email });
-
   if (!admin) {
     const err = new Error("Unauthorized");
     err.statusCode = 401;
@@ -107,7 +126,6 @@ export const deletePermissionService = async (
 
   /* ---------- FIND PERMISSION ---------- */
   const permission = await Permission.findOne({ permissionId });
-
   if (!permission) {
     const err = new Error("Permission not found");
     err.statusCode = 404;
@@ -124,7 +142,7 @@ export const deletePermissionService = async (
   );
 
   /* ---------- AUDIT LOG ---------- */
-  await PermissionAudit.create({
+  const audit = await PermissionAudit.create({
     permissionAuditId: uuidv6(),
     actionBy: admin._id,
     actionByEmail: admin.email,
@@ -132,14 +150,37 @@ export const deletePermissionService = async (
     action: action || "delete",
   });
 
+  /* ---------- NOTIFICATION ---------- */
+  try {
+    await sendNotification({
+      sender: admin._id,
+      permission: "permission.listing.delete",
+      title: "Permission Deleted",
+      message: `Permission "${permission.name}" was deleted by ${admin.email}`,
+      type: "PERMISSION_DELETED",
+      entityId: permission._id,
+      entityModel: "Permission",
+      metadata: {
+        permissionId: permission.permissionId,
+        permissionName: permission.name,
+        deletedBy: admin.email,
+        action: action || "delete",
+        auditId: audit._id,
+      },
+    });
+  } catch (err) {
+    console.error("Notification failed on permission delete:", err.message);
+  }
+
   return permission;
 };
 
-export const assignPermissionToEmployeeService = async(
-  data,
-  currentUser
-) => {
+/* =========================================================
+   ASSIGN PERMISSION TO EMPLOYEE
+========================================================= */
+export const assignPermissionToEmployeeService = async (data, currentUser) => {
   const { email, permission } = data;
+
   /* ---------- AUTH CHECK ---------- */
   const admin = await Employee.findOne({ email: currentUser.email });
   if (!admin) {
@@ -147,6 +188,7 @@ export const assignPermissionToEmployeeService = async(
     err.statusCode = 401;
     throw err;
   }
+
   /* ---------- TARGET EMPLOYEE ---------- */
   const target = await Employee.findOne({ email });
   if (!target) {
@@ -154,6 +196,7 @@ export const assignPermissionToEmployeeService = async(
     err.statusCode = 404;
     throw err;
   }
+
   /* ---------- PERMISSION CHECK ---------- */
   const permExists = await Permission.findOne({ name: permission });
   if (!permExists) {
@@ -161,17 +204,20 @@ export const assignPermissionToEmployeeService = async(
     err.statusCode = 400;
     throw err;
   }
+
   /* ---------- DUPLICATE CHECK ---------- */
   if (target.permissions.includes(permission)) {
     const err = new Error("Permission already assigned");
     err.statusCode = 409;
     throw err;
   }
+
   /* ---------- ASSIGN PERMISSION ---------- */
   await Employee.updateOne(
     { email },
     { $addToSet: { permissions: permission } }
   );
+
   /* ---------- AUDIT LOG ---------- */
   await PermissionAudit.create({
     permissionAuditId: uuidv6(),
@@ -179,25 +225,21 @@ export const assignPermissionToEmployeeService = async(
     actionByEmail: admin.email,
     actionFor: target._id,
     actionForEmail: target.email,
-    permission: permission,
+    permission,
     action: "assign",
   });
 
-  return {
-    email,
-    permission,
-  };
+  return { email, permission };
 };
 
-export const removePermissionFromEmployeeService = async (
-  data,
-  currentUser
-) => {
+/* =========================================================
+   REMOVE PERMISSION FROM EMPLOYEE
+========================================================= */
+export const removePermissionFromEmployeeService = async (data, currentUser) => {
   const { email, permission } = data;
 
   /* ---------- AUTH CHECK ---------- */
   const admin = await Employee.findOne({ email: currentUser.email });
-
   if (!admin) {
     const err = new Error("Unauthorized");
     err.statusCode = 401;
@@ -206,7 +248,6 @@ export const removePermissionFromEmployeeService = async (
 
   /* ---------- TARGET EMPLOYEE ---------- */
   const target = await Employee.findOne({ email });
-
   if (!target) {
     const err = new Error("Employee not found");
     err.statusCode = 404;
@@ -231,28 +272,22 @@ export const removePermissionFromEmployeeService = async (
     permissionAuditId: uuidv6(),
     actionBy: admin._id,
     actionByEmail: admin.email,
-
     actionFor: target._id,
     actionForEmail: target.email,
-
-    permission: permission,
+    permission,
     action: "revoke",
   });
 
-  return {
-    email,
-    permission,
-  };
+  return { email, permission };
 };
 
-
+/* =========================================================
+   GET PERMISSION AUDIT LOGS
+========================================================= */
 export const getPermissionAuditLogsService = async ({ page, limit }) => {
   const skip = (page - 1) * limit;
-
-  /* ---------- TOTAL COUNT ---------- */
   const totalItems = await PermissionAudit.countDocuments();
 
-  /* ---------- FETCH LOGS ---------- */
   const logs = await PermissionAudit.find()
     .populate("actionBy", "email firstName lastName name")
     .populate("actionFor", "email firstName lastName name")
@@ -261,29 +296,33 @@ export const getPermissionAuditLogsService = async ({ page, limit }) => {
     .limit(limit)
     .lean();
 
-  /* ---------- PAGINATION META ---------- */
+  const totalPages = Math.ceil(totalItems / limit);
+
   const pagination = {
     totalItems,
+    totalPages,
     currentPage: page,
+    nextPage: page < totalPages ? page + 1 : null,
+    prevPage: page > 1 ? page - 1 : null,
     limit,
   };
 
-  return {
-    logs,
-    pagination,
-  };
+  return { logs, pagination };
 };
 
+/* =========================================================
+   DELETE ALL PERMISSIONS
+========================================================= */
 export const deleteAllPermissionsService = async (currentUser) => {
   /* ---------- AUTH CHECK ---------- */
   const admin = await Employee.findOne({ email: currentUser.email });
-
   if (!admin) {
     const err = new Error("Unauthorized");
     err.statusCode = 401;
     throw err;
   }
-  /* ---------- COUNT BEFORE DELETE (for response clarity) ---------- */
+
+  /* ---------- COUNT BEFORE DELETE ---------- */
   const totalPermissions = await Permission.countDocuments();
 
   /* ---------- DELETE ALL PERMISSIONS ---------- */
@@ -301,7 +340,5 @@ export const deleteAllPermissionsService = async (currentUser) => {
     action: "delete_all",
   });
 
-  return {
-    deletedPermissions: totalPermissions,
-  };
+  return { deletedPermissions: totalPermissions };
 };

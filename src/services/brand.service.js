@@ -4,68 +4,64 @@ import { uploadToS3, deleteFromS3 } from "./awsS3.service.js";
 import { PermissionAudit } from "../models/manage/permissionaudit.model.js";
 import { sendNotification } from "./notification.service.js";
 import { redis as redisClient } from "../config/redis.config.js";
-const ALLOWED_CATEGORIES = ["Abutment-Level", "General", "Screw-Retained"];
 
+const ALLOWED_CATEGORIES = ["Abutment-Level", "General", "Screw-Retained"];
 const CACHE_TTL = 60 * 60;
+
 /* =========================================================
    CACHE HELPERS
 ========================================================= */
-
 const clearBrandCache = async () => {
   try {
     const keys = await redisClient.keys("BRAND*");
-
     if (keys.length > 0) {
       await redisClient.del(...keys);
     }
   } catch (error) {
-    console.log("REDIS BRAND CACHE CLEAR ERROR:", error.message);
+    console.error("REDIS BRAND CACHE CLEAR ERROR:", error.message);
   }
 };
 
 const setCache = async (key, data) => {
   try {
-    await redisClient.set(key, JSON.stringify(data), {
-      ex: CACHE_TTL,
-    });
+    await redisClient.set(key, JSON.stringify(data), { ex: CACHE_TTL });
   } catch (error) {
-    console.log("REDIS SET CACHE ERROR:", error.message);
+    console.error("REDIS SET CACHE ERROR:", error.message);
   }
 };
 
 const getCache = async (key) => {
   try {
     const cachedData = await redisClient.get(key);
-
     if (!cachedData) return null;
-
     return JSON.parse(cachedData);
   } catch (error) {
-    console.log("REDIS GET CACHE ERROR:", error.message);
-
+    console.error("REDIS GET CACHE ERROR:", error.message);
     return null;
   }
 };
 
-
+/* =========================================================
+   CREATE BRAND
+========================================================= */
 export const createBrandService = async ({
   brandName,
   categories,
   files,
   logoFile,
   employee,
-  permission
+  permission,
 }) => {
   let logoUpload;
   const fileUploads = [];
   try {
-    if(!brandName){
+    if (!brandName) {
       const err = new Error("Brand brandName is required");
       err.statusCode = 400;
       err.errorCode = "VALIDATION_ERROR";
       throw err;
     }
-    if(!logoFile){
+    if (!logoFile) {
       const err = new Error("Logo is required");
       err.statusCode = 400;
       err.errorCode = "VALIDATION_ERROR";
@@ -80,13 +76,15 @@ export const createBrandService = async ({
     }
     /* ---------- UPLOAD LOGO ---------- */
     logoUpload = await uploadToS3(logoFile, "brands");
+
     const hasFiles = files && files.length > 0;
-    if(!hasFiles && categories){
+    if (!hasFiles && categories) {
       const err = new Error("Category not allowed without files");
       err.statusCode = 400;
       err.errorCode = "VALIDATION_ERROR";
       throw err;
     }
+
     /* ---------- FILE PROCESS ---------- */
     if (hasFiles) {
       if (!categories) {
@@ -95,9 +93,7 @@ export const createBrandService = async ({
         err.errorCode = "VALIDATION_ERROR";
         throw err;
       }
-      const categoriesArray = Array.isArray(categories)
-        ? categories
-        : [categories];
+      const categoriesArray = Array.isArray(categories) ? categories : [categories];
       if (categoriesArray.length !== files.length) {
         const err = new Error("Each file must have a corresponding category");
         err.statusCode = 400;
@@ -128,34 +124,42 @@ export const createBrandService = async ({
       logoUrl: logoUpload.url,
       files: fileUploads,
     });
-       /* ---------- CLEAR CACHE ---------- */
+    /* ---------- CLEAR CACHE ---------- */
     await clearBrandCache();
     /* ---------- AUDIT ---------- */
-    await PermissionAudit.create({
-      permissionAuditId: uuidv6(),
-      actionBy: employee._id,
-      actionByEmail: employee.email,
-      actionFor: brand._id,
-      action: brand.brandName,
-      permission: permission || "create_brand",
-      actionType: "Create",
-    });
-    /* ---------- SEND NOTIFICATION ---------- */
-await sendNotification({
-  sender: employee._id,
-  permission: "brand.listing.read",
-  title: "New Brand Created",
-  message: `${brand.brandName} brand has been created successfully`,
-  type: "BRAND_CREATED",
-  entityId: brand._id,
-  entityModel: "Brand",
-  metadata: {
-    brandId: brand.brandId,
-    brandName: brand.brandName,
-    totalFiles: brand.files.length,
-    createdBy: employee.email,
-  },
-});
+    try {
+      await PermissionAudit.create({
+        permissionAuditId: uuidv6(),
+        actionBy: employee._id,
+        actionByEmail: employee.email,
+        actionFor: brand._id,
+        action: brand.brandName,
+        permission: permission || "create_brand",
+        actionType: "Create",
+      });
+    } catch (err) {
+      console.error("Audit log failed on create brand:", err.message);
+    }
+    /* ---------- NOTIFICATION ---------- */
+    try {
+      await sendNotification({
+        sender: employee._id,
+        permission: "brand.listing.create",
+        title: "New Brand Created",
+        message: `${brand.brandName} brand has been created successfully`,
+        type: "BRAND_CREATED",
+        entityId: brand._id,
+        entityModel: "Brand",
+        metadata: {
+          brandId: brand.brandId,
+          brandName: brand.brandName,
+          totalFiles: brand.files.length,
+          createdBy: employee.email,
+        },
+      });
+    } catch (err) {
+      console.error("Notification failed on create brand:", err.message);
+    }
     return brand;
   } catch (error) {
     /* ---------- ROLLBACK ---------- */
@@ -167,6 +171,9 @@ await sendNotification({
   }
 };
 
+/* =========================================================
+   UPDATE BRAND
+========================================================= */
 export const updateBrandService = async ({
   brandId,
   brandName,
@@ -175,9 +182,8 @@ export const updateBrandService = async ({
   files,
   logoFile,
   employee,
-  permission
+  permission,
 }) => {
-
   let newLogoUpload;
   const newFileUploads = [];
 
@@ -189,6 +195,7 @@ export const updateBrandService = async ({
       err.statusCode = 404;
       throw err;
     }
+
     /* ---------- DUPLICATE brandName CHECK ---------- */
     if (brandName && brandName !== brand.brandName) {
       const exist = await Brand.findOne({ brandName });
@@ -209,10 +216,7 @@ export const updateBrandService = async ({
 
     /* ---------- REMOVE FILES ---------- */
     if (removeFileIds) {
-      const ids = Array.isArray(removeFileIds)
-        ? removeFileIds
-        : [removeFileIds];
-
+      const ids = Array.isArray(removeFileIds) ? removeFileIds : [removeFileIds];
       const remainingFiles = [];
       for (const file of brand.files || []) {
         if (ids.includes(file.fileId)) {
@@ -223,6 +227,7 @@ export const updateBrandService = async ({
       }
       brand.files = remainingFiles;
     }
+
     /* ---------- ADD NEW FILES ---------- */
     if (files && files.length > 0) {
       if (!categories) {
@@ -230,9 +235,7 @@ export const updateBrandService = async ({
         err.statusCode = 400;
         throw err;
       }
-      const categoriesArray = Array.isArray(categories)
-        ? categories
-        : [categories];
+      const categoriesArray = Array.isArray(categories) ? categories : [categories];
       if (categoriesArray.length !== files.length) {
         const err = new Error("Each file must have a corresponding category");
         err.statusCode = 400;
@@ -256,40 +259,49 @@ export const updateBrandService = async ({
       brand.files = brand.files || [];
       brand.files.push(...newFileUploads);
     }
+
     /* ---------- SAVE ---------- */
     await brand.save();
-        /* ---------- CLEAR CACHE ---------- */
-    await clearBrandCache();
-    /* ---------- AUDIT ---------- */
-    await PermissionAudit.create({
-      permissionAuditId: uuidv6(),
-      actionBy: employee._id,
-      actionByEmail: employee.email,
-      actionFor: brand._id,
-      action: brand.brandName,
-      permission: permission || "update_brand",
-      actionType: "Update",
-    });
-     /* ---------- NOTIFICATION ---------- */
 
-    await sendNotification({
-      sender: employee._id,
-      permission: "brand.listing.read",
-      title: "Brand Updated",
-      message: `${brand.brandName} brand updated successfully`,
-      type: "BRAND_UPDATED",
-      entityId: brand._id,
-      entityModel: "Brand",
-      metadata: {
-        brandId: brand.brandId,
-        brandName:
-          brand.brandName,
-        totalFiles:
-          brand.files.length,
-        updatedBy:
-          employee.email,
-      },
-    });
+    /* ---------- CLEAR CACHE ---------- */
+    await clearBrandCache();
+
+    /* ---------- AUDIT ---------- */
+    try {
+      await PermissionAudit.create({
+        permissionAuditId: uuidv6(),
+        actionBy: employee._id,
+        actionByEmail: employee.email,
+        actionFor: brand._id,
+        action: brand.brandName,
+        permission: permission || "update_brand",
+        actionType: "Update",
+      });
+    } catch (err) {
+      console.error("Audit log failed on update brand:", err.message);
+    }
+
+    /* ---------- NOTIFICATION ---------- */
+    try {
+      await sendNotification({
+        sender: employee._id,
+        permission: "brand.listing.update",
+        title: "Brand Updated",
+        message: `${brand.brandName} brand updated successfully`,
+        type: "BRAND_UPDATED",
+        entityId: brand._id,
+        entityModel: "Brand",
+        metadata: {
+          brandId: brand.brandId,
+          brandName: brand.brandName,
+          totalFiles: brand.files.length,
+          updatedBy: employee.email,
+        },
+      });
+    } catch (err) {
+      console.error("Notification failed on update brand:", err.message);
+    }
+
     return brand;
   } catch (error) {
     /* ---------- ROLLBACK ---------- */
@@ -301,52 +313,37 @@ export const updateBrandService = async ({
   }
 };
 
-
+/* =========================================================
+   GET ALL BRANDS
+========================================================= */
 export const getAllBrandsService = async () => {
   try {
+    const cacheKey = `BRAND:ALL`;
 
-              /* ---------- CACHE KEY ---------- */
+    const cached = await getCache(cacheKey);
+    if (cached) {
+      console.log("CACHE HIT:", cacheKey);
+      return cached;
+    }
 
-      const cacheKey = `BRAND:ALL`;
-
-      /* ---------- CACHE ---------- */
-
-      const cached =
-        await getCache(cacheKey);
-
-      if (cached) {
-        console.log(
-          "CACHE HIT:",
-          cacheKey
-        );
-
-        return cached;
-      }
-
-    const brands = await Brand.find()
-      .sort({ brandName: 1 })
-      .lean();
+    const brands = await Brand.find().sort({ brandName: 1 }).lean();
     const totalBrands = await Brand.countDocuments();
-      /* ---------- STORE CACHE ---------- */
 
-      await setCache(
-        cacheKey,
-        brands
-      );
+    // FIX: cache the full result object not just brands array
+    const result = { totalBrands, brands };
+    await setCache(cacheKey, result);
 
-
-    return {
-       totalBrands,
-       brands, 
-    };
+    return result;
   } catch (error) {
     throw error;
   }
 };
 
+/* =========================================================
+   GET BRAND BY ID
+========================================================= */
 export const getBrandByIdService = async (brandId) => {
   try {
-
     if (!brandId) {
       const err = new Error("BrandId is required");
       err.statusCode = 400;
@@ -355,7 +352,6 @@ export const getBrandByIdService = async (brandId) => {
     }
 
     const brand = await Brand.findOne({ brandId }).lean();
-
     if (!brand) {
       const err = new Error("Brand not found");
       err.statusCode = 404;
@@ -364,23 +360,24 @@ export const getBrandByIdService = async (brandId) => {
     }
 
     return brand;
-
   } catch (error) {
     throw error;
   }
 };
 
+/* =========================================================
+   DELETE BRAND
+========================================================= */
 export const deleteBrandService = async ({ brandId, employee, permission }) => {
   try {
-
     if (!brandId) {
       const err = new Error("BrandId is required");
       err.statusCode = 400;
       throw err;
     }
+
     /* ---------- FIND BRAND ---------- */
     const brand = await Brand.findOne({ brandId });
-
     if (!brand) {
       const err = new Error("Brand not found");
       err.statusCode = 404;
@@ -403,46 +400,57 @@ export const deleteBrandService = async ({ brandId, employee, permission }) => {
 
     /* ---------- DELETE BRAND ---------- */
     await Brand.deleteOne({ brandId });
-     /* ---------- CLEAR CACHE ---------- */
+
+    /* ---------- CLEAR CACHE ---------- */
     await clearBrandCache();
 
     /* ---------- AUDIT ---------- */
-    await PermissionAudit.create({
-      permissionAuditId: uuidv6(),
-      actionBy: employee._id,
-      actionByEmail: employee.email,
-      actionFor: brand._id,
-      action: brand.brandName,
-      permission: permission || "delete_brand",
-      actionType: "Delete",
-    });
+    try {
+      await PermissionAudit.create({
+        permissionAuditId: uuidv6(),
+        actionBy: employee._id,
+        actionByEmail: employee.email,
+        actionFor: brand._id,
+        action: brand.brandName,
+        permission: permission || "delete_brand",
+        actionType: "Delete",
+      });
+    } catch (err) {
+      console.error("Audit log failed on delete brand:", err.message);
+    }
+
     /* ---------- NOTIFICATION ---------- */
-    await sendNotification({
-      sender: employee._id,
-      permission: "brand.listing.read",
-      title: "Brand Deleted",
-      message: `${brand.brandName} brand deleted successfully`,
-      type: "BRAND_DELETED",
-      entityId: brand._id,
-      entityModel: "Brand",
-      matadata: {
-        brandId: brand.brandId,
-        brandName:
-          brand.brandName,
-        deletedBy:
-          employee.email,
-      },
-    });
+    try {
+      await sendNotification({
+        sender: employee._id,
+        permission: "brand.listing.delete",
+        title: "Brand Deleted",
+        message: `${brand.brandName} brand deleted successfully`,
+        type: "BRAND_DELETED",
+        entityId: brand._id,
+        entityModel: "Brand",
+        // FIX: typo matadata → metadata
+        metadata: {
+          brandId: brand.brandId,
+          brandName: brand.brandName,
+          deletedBy: employee.email,
+        },
+      });
+    } catch (err) {
+      console.error("Notification failed on delete brand:", err.message);
+    }
+
     return true;
   } catch (error) {
     throw error;
   }
 };
 
+/* =========================================================
+   DELETE ALL BRANDS  — not in use, kept for reference only
+========================================================= */
 export const deleteAllBrandsService = async ({ employee, permission }) => {
   try {
-
-    /* ---------- PERMISSION CHECK ---------- */
     if (permission && permission !== "delete_brand") {
       const err = new Error("Unauthorized permission");
       err.statusCode = 403;
@@ -453,13 +461,9 @@ export const deleteAllBrandsService = async ({ employee, permission }) => {
 
     /* ---------- DELETE FROM S3 ---------- */
     for (const brand of brands) {
-
-      // Delete logo
       if (brand.logoUrl) {
         await deleteFromS3(brand.logoUrl);
       }
-
-      // Delete multiple files (FIXED: brand.files instead of brand.file)
       if (brand.files && brand.files.length > 0) {
         for (const file of brand.files) {
           if (file.fileLink) {
@@ -472,21 +476,25 @@ export const deleteAllBrandsService = async ({ employee, permission }) => {
     /* ---------- DELETE ALL FROM DB ---------- */
     const result = await Brand.deleteMany({});
 
+    /* ---------- CLEAR CACHE ---------- */
+    await clearBrandCache();
+
     /* ---------- AUDIT ---------- */
-    await PermissionAudit.create({
-      permissionAuditId: uuidv6(),
-      actionBy: employee._id,
-      actionByEmail: employee.email,
-      actionFor: null,
-      action: "All Brands",
-      permission: permission || "delete_brand",
-      actionType: "Delete",
-    });
+    try {
+      await PermissionAudit.create({
+        permissionAuditId: uuidv6(),
+        actionBy: employee._id,
+        actionByEmail: employee.email,
+        actionFor: null,
+        action: "All Brands Deleted",
+        permission: permission || "delete_brand",
+        actionType: "Delete",
+      });
+    } catch (err) {
+      console.error("Audit log failed on delete all brands:", err.message);
+    }
 
-    return {
-      deletedCount: result.deletedCount
-    };
-
+    return { deletedCount: result.deletedCount };
   } catch (error) {
     throw error;
   }

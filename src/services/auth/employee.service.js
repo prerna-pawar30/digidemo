@@ -9,6 +9,7 @@ import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import { resetPasswordTemplate } from "../../config/templates/resetPasswordTemplate.js";
 import { sendNotification } from "../notification.service.js";
+import Permission from "../../models/manage/permission.model.js";
 
 
 export const createEmployeeService = async (data, adminEmail) => {
@@ -18,27 +19,37 @@ export const createEmployeeService = async (data, adminEmail) => {
     email,
     password,
     personalEmail,
-    role,
-    permission
+    role: rawRole,      // ✅ destructure as rawRole to avoid const conflict
+    permission,
   } = data;
 
-  /* Check existing employee */
+  const role = Number(rawRole); // ✅ now safely convert to number
 
+  /* Check existing employee */
   const existingEmployee = await Employee.findOne({ email });
   if (existingEmployee) {
-    throw new Error("EMPLOYEE_ALREADY_EXISTS");
+    const err = new Error("EMPLOYEE_ALREADY_EXISTS");
+    err.statusCode = 400;
+    throw err;
   }
-  /* Check admin */
-  const admin = await Employee.findOne({
-    email: adminEmail,
-  });
 
+  /* Check admin */
+  const admin = await Employee.findOne({ email: adminEmail, isDeleted: false });
   if (!admin) {
-    throw new Error("UNAUTHORIZED_ADMIN");
+    const err = new Error("UNAUTHORIZED_ADMIN");
+    err.statusCode = 401;
+    throw err;
+  }
+
+  /* Assign permissions */
+  let assignedPermissions = [];
+
+  if (role === 0 || role === 1) {
+    const allPermissions = await Permission.find({}, "name").lean();
+    assignedPermissions = allPermissions.map((p) => p.name); // all 44
   }
 
   /* Create employee */
-
   const newEmployee = await Employee.create({
     employeeId: uuidv6(),
     firstName,
@@ -47,45 +58,50 @@ export const createEmployeeService = async (data, adminEmail) => {
     password,
     personalEmail,
     role,
+    permissions: assignedPermissions,
     createdBy: adminEmail,
     isNewEmployee: true,
   });
 
   /* Send welcome email */
   const htmlBody = employeeWelcomeEmail(firstName, email, password);
-  await sendZohoMail(
-    personalEmail,
-    "Login to your Company Account",
-    htmlBody
-  );
+  await sendZohoMail(personalEmail, "Login to your Company Account", htmlBody);
 
   /* Permission audit */
-  await PermissionAudit.create({
-    permissionAuditId: uuidv6(),
-    actionBy: admin._id,
-    actionByEmail: admin.email,
-    actionFor: newEmployee._id,
-    action: newEmployee.email,
-    permission: permission || "create_employee",
-    actionType: "Create",
-  });
+  try {
+    await PermissionAudit.create({
+      permissionAuditId: uuidv6(),
+      actionBy: admin._id,
+      actionByEmail: admin.email,
+      actionFor: newEmployee._id,
+      action: newEmployee.email,
+      permission: permission || "create_employee",
+      actionType: "Create",
+    });
+  } catch (error) {
+    console.error("Audit log failed on create employee:", error.message);
+  }
 
-    /* ---------- SEND NOTIFICATION ---------- */
+  /* Send notification */
+  try {
+    await sendNotification({
+      sender: admin._id,
+      permission: "employee.listing.read",
+      title: "New Employee Created",
+      message: `${firstName} ${lastName} has been added as role ${role}`,
+      type: "EMPLOYEE_CREATED",
+      entityId: newEmployee._id,
+      entityModel: "Employee",
+      metadata: {
+        employeeName: `${firstName} ${lastName}`,
+        employeeEmail: email,
+        role,
+      },
+    });
+  } catch (error) {
+    console.error("Notification failed on create employee:", error.message);
+  }
 
-  await sendNotification({
-    sender: admin._id,
-    permission: "employee.listing.read",
-    title: "New Employee Created",
-    message: `${firstName} ${lastName} has been added as ${role}`,
-    type: "EMPLOYEE_CREATED",
-    entityId: newEmployee._id,
-    entityModel: "Employee",
-    metadata: {
-      employeeName: `${firstName} ${lastName}`,
-      employeeEmail: email,
-      role,
-    },
-  });
   return newEmployee;
 };
 
@@ -167,13 +183,12 @@ export const forgotEmployeePasswordService = async (email) => {
   employee.resetPasswordToken = resetToken;
   employee.resetPasswordExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
   await employee.save();
-  const resetURL = `https://manage.digident.in/reset-password/${resetToken}`;
+  const resetURL = `https://adminfrontend00.netlify.app/reset-password/${resetToken}`;
   await sendZohoMail(
     employee.email,
     "Reset Your Password",
     resetPasswordTemplate(resetURL, employee.firstName)
   );
-
 };
 
 export const getEmployeeService = async (email) => {
@@ -216,6 +231,7 @@ export const deleteEmployeeService = async (
   employee.isDeleted = true;
   employee.deletedAt = new Date();
   await employee.save();
+  try{
   await PermissionAudit.create({
     permissionAuditId: uuidv6(),
     actionBy: admin._id,
@@ -227,6 +243,31 @@ export const deleteEmployeeService = async (
     permission: permission?.toLowerCase() || "delete_employee",
     actionType: "Delete"
   });
+}catch(error){
+  console.log("error in delete of employee Audit log");
+}
+
+  /* ---------- SEND NOTIFICATION ---------- */
+try{
+  await sendNotification({
+    sender: admin._id,
+    permission: "employee.listing.read",
+    title: "Employee Deleted",
+    message: `${employee.firstName} ${employee.lastName} account deleted by ${admin.firstName} ${admin.lastName}`,
+    type: "EMPLOYEE_DELETED",
+    entityId: employee._id,
+    entityModel: "Employee",
+    metadata: {
+      employeeId: employee.employeeId,
+      employeeName: `${employee.firstName} ${employee.lastName}`,
+      employeeEmail: employee.email,
+      deletedBy: `${admin.firstName} ${admin.lastName}`,
+      deletedByEmail: admin.email
+    }
+  });
+}catch(error){
+  console.log("error in delete employee notification send");
+}
   return {
     employeeId: employee.employeeId
   };
@@ -238,14 +279,11 @@ export const updateEmployeeRoleService = async (
   adminEmail,
   permission
 ) => {
-console.log("Updating role for:", employeeEmail, "to role:", role, "by admin:", adminEmail);
   /* Find admin */
-
   const admin = await Employee.findOne({
     email: adminEmail,
     isDeleted: false
   });
-console.log("Admin found:", admin);
   if (!admin) {
     throw new Error("UNAUTHORIZED_ACTION");
   }
@@ -256,20 +294,19 @@ console.log("Admin found:", admin);
     email: employeeEmail,
     isDeleted: false
   });
-console.log("Employee found:", employee);
-
   if (!employee) {
     throw new Error("EMPLOYEE_NOT_FOUND");
   }
 
   /* Update role */
+  const oldRole = employee.role
 
   employee.role = role;
 
   await employee.save();
 
   /* Save permission audit */
-
+try{
   await PermissionAudit.create({
     permissionAuditId: uuidv6(),
     actionBy: admin._id,
@@ -281,6 +318,40 @@ console.log("Employee found:", employee);
     permission: permission?.toLowerCase(),
     actionType: "Update"
   });
+}catch(error){
+  console.log("error in update role of employee Audit log");
+}
+
+    /* ---------- SEND NOTIFICATION ---------- */
+try{
+    await sendNotification({
+      sender: admin._id,
+      permission: "employee.listing.read",
+  
+      title: "Employee Role Updated",
+  
+      message: `${employee.firstName} ${employee.lastName} role updated from ${oldRole} to ${role}`,
+  
+      type: "EMPLOYEE_ROLE_UPDATED",
+  
+      entityId: employee._id,
+      entityModel: "Employee",
+  
+      metadata: {
+        employeeId: employee.employeeId,
+        employeeName: `${employee.firstName} ${employee.lastName}`,
+        employeeEmail: employee.email,
+  
+        oldRole,
+        newRole: role,
+
+      updatedBy: `${admin.firstName} ${admin.lastName}`,
+      updatedByEmail: admin.email
+    }
+  })
+}catch(error){
+  console.log("error in update role notification of employee");
+}
 
   return {
     email: employee.email,

@@ -1,104 +1,8 @@
 import Job from "../models/manage/job.model.js";
 import JobApplication from "../models/ecommarace/jobApplication.model.js";
-import { PermissionAudit } from "../models/manage/permissionaudit.model.js";
-import { sendNotification } from "./notification.service.js";
-import { redis as redisClient } from "../config/redis.config.js";
 import { v6 as uuidv6 } from "uuid";
-
-/* =========================================================
-   CACHE CONFIG
-========================================================= */
-
-const CACHE_TTL = 60 * 30;
-
-/* =========================================================
-   CACHE HELPERS
-========================================================= */
-
-const setCache = async (
-  key,
-  data
-) => {
-  try {
-
-    await redisClient.set(
-      key,
-      JSON.stringify(data),
-      {
-        ex: CACHE_TTL,
-      }
-    );
-
-  } catch (error) {
-
-    console.log(
-      "REDIS SET CACHE ERROR:",
-      error.message
-    );
-
-  }
-};
-
-const getCache = async (
-  key
-) => {
-  try {
-
-    const cachedData =
-      await redisClient.get(key);
-
-    if (!cachedData) {
-      return null;
-    }
-
-    return JSON.parse(
-      cachedData
-    );
-
-  } catch (error) {
-
-    console.log(
-      "REDIS GET CACHE ERROR:",
-      error.message
-    );
-
-    return null;
-
-  }
-};
-
-const clearApplicationCache =
-  async () => {
-    try {
-
-      const keys =
-        await redisClient.keys(
-          "JOB_APPLICATION:*"
-        );
-
-      if (keys.length > 0) {
-
-        await redisClient.del(
-          ...keys
-        );
-
-        console.log(
-          "JOB APPLICATION CACHE CLEARED:",
-          keys
-        );
-      }
-
-    } catch (error) {
-
-      console.log(
-        "CACHE CLEAR ERROR:",
-        error.message
-      );
-
-    }
-  };
-
-
+import { sendNotification } from "./notification.service.js";
+import { clearJobCache } from "./job.service.js";
 
 export const submitJobApplicationService = async ({
   data,
@@ -109,11 +13,9 @@ export const submitJobApplicationService = async ({
     jobId: data.jobId,
     status: "published",
   });
-
   if (!job) {
     throw new Error("Job not found or not open for application");
   }
-
   const existingApplication = await JobApplication.findOne({
     jobId: data.jobId,
     "applicant.email": data.email.toLowerCase(),
@@ -150,51 +52,31 @@ export const submitJobApplicationService = async ({
     additionalFiles,
     source: data.source || "career_page",
   });
-      /* ---------- CLEAR CACHE ---------- */
-      await clearApplicationCache();
-            /* ---------- SEND NOTIFICATION ---------- */
+    /* ---------- CLEAR JOB CACHE ---------- */
+    await clearJobCache();
+  /* ---------- NOTIFICATION ---------- */
+  try {
+    await sendNotification({
+      sender: null,
+      permission: career.application.read,
+      title: "New Job Application Received",
+      message: `${data.firstName} ${data.lastName} applied for "${job.title}"`,
+      type: "APPLICATION_SUBMITTED",
+      entityId: application._id,
+      entityModel: "JobApplication",
+      metadata: {
+        applicationId: application.applicationId,
+        jobId: job.jobId,
+        jobTitle: job.title,
+        applicantName: `${data.firstName} ${data.lastName}`,
+        applicantEmail: data.email.toLowerCase(),
+        source: application.source,
+      },
+    });
+  } catch (err) {
+    console.error("Notification failed on submit application:", err.message);
+  }
 
-      await sendNotification({
-        sender: null,
-
-        permission:
-          "job.application.read",
-
-        title:
-          "New Job Application",
-
-        message: `${application.applicant.firstName} ${application.applicant.lastName} applied for ${job.title}`,
-
-        type:
-          "JOB_APPLICATION_CREATED",
-
-        entityId:
-          application._id,
-
-        entityModel:
-          "JobApplication",
-
-        metadata: {
-          applicationId:
-            application.applicationId,
-
-          jobId:
-            job.jobId,
-
-          jobTitle:
-            job.title,
-
-          applicantName: `${application.applicant.firstName} ${application.applicant.lastName}`,
-
-          applicantEmail:
-            application
-              .applicant
-              .email,
-
-          source:
-            application.source,
-        },
-      });
   return application;
 };
 
@@ -239,17 +121,17 @@ export const updateJobApplicationService = async ({
     throw new Error("Application not found");
   }
 
-  /* ---------- DUPLICATE CHECK ---------- */
-  // const existingApplication = await JobApplication.findOne({
-  //   _id: { $ne: application._id },
-  //   jobId: data.jobId,
-  //   "applicant.email": data.email.toLowerCase(),
-  //   isDeleted: false,
-  // });
+   /* ---------- DUPLICATE CHECK ---------- */
+   const duplicateApplication = await JobApplication.findOne({
+    _id: { $ne: application._id },
+    jobId: data.jobId,
+    "applicant.email": data.email.toLowerCase(),
+    isDeleted: false,
+  });
 
-  // if (existingApplication) {
-  //   throw new Error("You have already applied for this job");
-  // }
+  if (duplicateApplication) {
+    throw new Error("You have already applied for this job");
+  }
 
   /* ---------- UPDATE DATA ---------- */
   application.job = job._id;
@@ -277,46 +159,9 @@ export const updateJobApplicationService = async ({
   application.source = data.source || "career_page";
 
   await application.save();
+ /* ---------- CLEAR JOB CACHE ---------- */
+  await clearJobCache();
 
-      /* ---------- CLEAR CACHE ---------- */
-      await clearApplicationCache();
-      /* ---------- SEND NOTIFICATION ---------- */
-      await sendNotification({
-        sender:
-          employee?._id,
-
-        permission:
-          "job.application.read",
-
-        title:
-          "Application Status Updated",
-
-        message: `Application status updated to ${status}`,
-
-        type:
-          "JOB_APPLICATION_STATUS_UPDATED",
-
-        entityId:
-          application._id,
-
-        entityModel:
-          "JobApplication",
-
-        metadata: {
-          applicationId:
-            application.applicationId,
-
-          applicantEmail:
-            application
-              .applicant
-              .email,
-
-          status,
-
-          reviewedBy:
-            employee?.email,
-        },
-      });
   return application;
 };
 
@@ -349,23 +194,28 @@ export const getApplicationsService = async ({ pagination, filters }) => {
     ];
   }
 
-  const totalApplications = await JobApplication.countDocuments(query);
+  const [applications, totalItems] = await Promise.all([
+    JobApplication.find(query)
+      .populate("job", "jobId title department location employmentType workplaceType status")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+    JobApplication.countDocuments(query),
+  ]);
 
-  const applications = await JobApplication.find(query)
-    .populate("job", "jobId title department location employmentType workplaceType status")
-    .sort({ createdAt: -1 })
-    .skip(skip)
-    .limit(limit)
-    .lean();
-
-
-      /* ---------- CLEAR CACHE ---------- */
-      await clearApplicationCache();
+  const totalPages = Math.ceil(totalItems / limit);
 
   return {
     applications,
-    totalApplications,
-    currentPage: page,
+    pagination: {
+      totalItems,
+      totalPages,
+      currentPage: page,
+      nextPage: page < totalPages ? page + 1 : null,
+      prevPage: page > 1 ? page - 1 : null,
+      limit,
+    },
   };
 };
 
@@ -415,6 +265,9 @@ export const updateApplicationStatusService = async ({
   }
 
   await application.save();
+  /* ---------- CLEAR JOB CACHE ---------- */
+  await clearJobCache();
+
   return application;
 };
 

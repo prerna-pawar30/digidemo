@@ -1,936 +1,389 @@
 import Job from "../models/manage/job.model.js";
 import { generateSlug } from "../helpers/slug.helper.js";
 import { v6 as uuidv6 } from "uuid";
-import { PermissionAudit } from "../models/manage/permissionaudit.model.js";
 import { sendNotification } from "./notification.service.js";
 import { redis as redisClient } from "../config/redis.config.js";
+import { PermissionAudit } from "../models/manage/permissionaudit.model.js";
 
 /* =========================================================
    CACHE CONFIG
 ========================================================= */
-
-const CACHE_TTL = 60 * 10; // 10 min
+const CACHE_TTL = 60 * 60;
 
 /* =========================================================
    CACHE HELPERS
 ========================================================= */
-
 const getCache = async (key) => {
   try {
-    const cachedData = await redisClient.get(key);
-
-    if (!cachedData) return null;
-
-    return JSON.parse(cachedData);
-
-  } catch (error) {
-
-    console.log(
-      "REDIS GET CACHE ERROR:",
-      error.message
-    );
-
+    const cached = await redisClient.get(key);
+    if (!cached) return null;
+    return JSON.parse(cached);
+  } catch (err) {
+    console.error("REDIS GET CACHE ERROR:", err.message);
     return null;
   }
 };
 
 const setCache = async (key, data) => {
   try {
-
-    await redisClient.set(
-      key,
-      JSON.stringify(data),
-      {
-        ex: CACHE_TTL,
-      }
-    );
-
-  } catch (error) {
-
-    console.log(
-      "REDIS SET CACHE ERROR:",
-      error.message
-    );
-
+    await redisClient.set(key, JSON.stringify(data), { ex: CACHE_TTL });
+  } catch (err) {
+    console.error("REDIS SET CACHE ERROR:", err.message);
   }
 };
 
-const clearJobCache = async () => {
+export const clearJobCache = async () => {
   try {
-
     const keys = await redisClient.keys("JOB:*");
-
     if (keys.length > 0) {
-
       await redisClient.del(...keys);
-
-      console.log(
-        "JOB CACHE CLEARED:",
-        keys
-      );
+      console.log("JOB CACHE CLEARED:", keys);
     }
-
-  } catch (error) {
-
-    console.log(
-      "REDIS JOB CACHE CLEAR ERROR:",
-      error.message
-    );
-
+  } catch (err) {
+    console.error("REDIS CACHE CLEAR ERROR:", err.message);
   }
 };
 
 /* =========================================================
    CREATE JOB
 ========================================================= */
-export const createJobService = async ({
-  data,
-  employee,
-}) => {
-
-  try {
-
-    /* ---------- VALIDATION ---------- */
-
-    if (!data?.title) {
-
-      const err = new Error(
-        "Job title is required"
-      );
-
-      err.statusCode = 400;
-
-      err.errorCode =
-        "VALIDATION_ERROR";
-
-      throw err;
-    }
-
-    /* ---------- GENERATE UNIQUE SLUG ---------- */
-
-    let baseSlug = generateSlug(
-      data.title
-    );
-
-    let slug = baseSlug;
-
-    let counter = 1;
-
-    while (
-      await Job.findOne({ slug })
-    ) {
-
-      slug = `${baseSlug}-${counter++}`;
-
-    }
-
-    /* ---------- CREATE JOB ---------- */
-
-    const job = await Job.create({
-      ...data,
-
-      jobId: uuidv6(),
-
-      slug,
-
-      createdBy: {
-        employeeId:
-          employee?.employeeId || null,
-
-        employeeRef:
-          employee?._id || null,
-
-        name:
-          employee?.firstName || null,
-
-        email:
-          employee?.email || null,
-      },
-
-      updatedBy: {
-        employeeId:
-          employee?.employeeId || null,
-
-        employeeRef:
-          employee?._id || null,
-
-        name:
-          employee?.firstName || null,
-
-        email:
-          employee?.email || null,
-      },
-    });
-
-    /* ---------- AUDIT LOG ---------- */
-
-    await PermissionAudit.create({
-      permissionAuditId:
-        uuidv6(),
-
-      actionBy:
-        employee?._id,
-
-      actionByEmail:
-        employee?.email,
-
-      actionFor:
-        job._id,
-
-      action:
-        `Job Created | Title:${job.title} | Department:${job.department} | Status:${job.status}`,
-
-      permission:
-        "create_job",
-
-      actionType:
-        "Create",
-    });
-
-    /* ---------- CLEAR CACHE ---------- */
-
-    await clearJobCache();
-
-    /* ---------- SEND NOTIFICATION ---------- */
-
-    await sendNotification({
-      sender:
-        employee?._id,
-
-      permission:
-        "job.listing.read",
-
-      title:
-        "New Job Created",
-
-      message:
-        `${job.title} job has been created successfully`,
-
-      type:
-        "JOB_CREATED",
-
-      entityId:
-        job._id,
-
-      entityModel:
-        "Job",
-
-      metadata: {
-        jobId:
-          job.jobId,
-
-        title:
-          job.title,
-
-        slug:
-          job.slug,
-
-        department:
-          job.department,
-
-        employmentType:
-          job.employmentType,
-
-        workplaceType:
-          job.workplaceType,
-
-        status:
-          job.status,
-
-        createdBy:
-          employee?.email,
-      },
-    });
-
-    return job;
-
-  } catch (error) {
-
-    throw error;
-
+export const createJobService = async ({ data, employee }) => {
+  let baseSlug = generateSlug(data.title);
+  let slug = baseSlug;
+  let counter = 1;
+  while (await Job.findOne({ slug })) {
+    slug = `${baseSlug}-${counter++}`;
   }
+
+  const job = await Job.create({
+    ...data,
+    jobId: uuidv6(),
+    slug,
+    createdBy: {
+      employeeId: employee?.employeeId || null,
+      employeeRef: employee?._id || null,
+      name: employee?.firstName || null,
+      email: employee?.email || null,
+    },
+    updatedBy: {
+      employeeId: employee?.employeeId || null,
+      employeeRef: employee?._id || null,
+      name: employee?.firstName || null,
+      email: employee?.email || null,
+    },
+  });
+
+  /* ---------- CLEAR CACHE ---------- */
+  await clearJobCache();
+
+  /* ---------- AUDIT ---------- */
+  try {
+    await PermissionAudit.create({
+      permissionAuditId: uuidv6(),
+      actionBy: employee?._id,
+      actionByEmail: employee?.email,
+      actionFor: job._id,
+      actionForEmail: null,
+      action: job.title,
+      permission: "career.job.create",
+      actionType: "Create",
+    });
+  } catch (err) {
+    console.error("Audit log failed on create job:", err.message);
+  }
+
+  /* ---------- NOTIFICATION ---------- */
+  try {
+    await sendNotification({
+      sender: employee?._id,
+      permission: "career.job.create",
+      title: "Job Created",
+      message: `New job opening added for ${job.title}`,
+      type: "JOB_CREATED",
+      entityId: job._id,
+      entityModel: "Job",
+      metadata: {
+        jobId: job.jobId,
+        title: job.title,
+        slug: job.slug,
+        createdBy: employee?.email || null,
+      },
+    });
+  } catch (err) {
+    console.error("Notification failed on create job:", err.message);
+  }
+
+  return job;
 };
 
 /* =========================================================
    UPDATE JOB
 ========================================================= */
+export const updateJobService = async ({ jobId, data, employee }) => {
+  const job = await Job.findOne({ jobId });
+  if (!job) {
+    const error = new Error("Job not found");
+    error.statusCode = 404;
+    error.errorCode = "JOB_NOT_FOUND";
+    throw error;
+  }
 
-export const updateJobService = async ({
-  jobId,
-  data,
-  employee,
-}) => {
+  if (data.title && data.title !== job.title) {
+    let baseSlug = generateSlug(data.title);
+    let slug = baseSlug;
+    let counter = 1;
+    while (await Job.findOne({ slug, _id: { $ne: job._id } })) {
+      slug = `${baseSlug}-${counter++}`;
+    }
+    data.slug = slug;
+  }
 
+  Object.assign(job, data);
+
+  job.updatedBy = {
+    employeeId: employee?.employeeId || null,
+    employeeRef: employee?._id || null,
+    name: employee?.firstName || null,
+    email: employee?.email || null,
+  };
+
+  await job.save();
+
+  /* ---------- CLEAR CACHE ---------- */
+  await clearJobCache();
+
+  /* ---------- AUDIT ---------- */
   try {
-
-    /* ---------- VALIDATION ---------- */
-
-    if (!jobId) {
-
-      const err = new Error(
-        "JobId is required"
-      );
-
-      err.statusCode = 400;
-
-      err.errorCode =
-        "VALIDATION_ERROR";
-
-      throw err;
-    }
-
-    /* ---------- FIND JOB ---------- */
-
-    const job = await Job.findOne({
-      jobId,
-    });
-
-    if (!job) {
-
-      const err = new Error(
-        "Job not found"
-      );
-
-      err.statusCode = 404;
-
-      err.errorCode =
-        "JOB_NOT_FOUND";
-
-      throw err;
-    }
-
-    /* ---------- UPDATE SLUG ---------- */
-
-    if (
-      data.title &&
-      data.title !== job.title
-    ) {
-
-      let baseSlug = generateSlug(
-        data.title
-      );
-
-      let slug = baseSlug;
-
-      let counter = 1;
-
-      while (
-        await Job.findOne({
-          slug,
-          _id: {
-            $ne: job._id,
-          },
-        })
-      ) {
-
-        slug = `${baseSlug}-${counter++}`;
-
-      }
-
-      data.slug = slug;
-    }
-
-    /* ---------- STORE OLD DATA ---------- */
-
-    const oldTitle = job.title;
-
-    const oldStatus = job.status;
-
-    /* ---------- UPDATE JOB ---------- */
-
-    Object.assign(job, data);
-
-    job.updatedBy = {
-      employeeId:
-        employee?.employeeId || null,
-
-      employeeRef:
-        employee?._id || null,
-
-      name:
-        employee?.firstName || null,
-
-      email:
-        employee?.email || null,
-    };
-
-    await job.save();
-
-    /* ---------- AUDIT LOG ---------- */
-
     await PermissionAudit.create({
-      permissionAuditId:
-        uuidv6(),
-
-      actionBy:
-        employee?._id,
-
-      actionByEmail:
-        employee?.email,
-
-      actionFor:
-        job._id,
-
-      action:
-        `Job Updated | Old Title:${oldTitle} | New Title:${job.title} | Status:${oldStatus} -> ${job.status}`,
-
-      permission:
-        "update_job",
-
-      actionType:
-        "Update",
+      permissionAuditId: uuidv6(),
+      actionBy: employee?._id,
+      actionByEmail: employee?.email,
+      actionFor: job._id,
+      actionForEmail: null,
+      action: job.title,
+      permission: "career.job.update",
+      actionType: "Update",
     });
+  } catch (err) {
+    console.error("Audit log failed on update job:", err.message);
+  }
 
-    /* ---------- CLEAR CACHE ---------- */
-
-    await clearJobCache();
-
-    /* ---------- SEND NOTIFICATION ---------- */
-
+  /* ---------- NOTIFICATION ---------- */
+  try {
     await sendNotification({
-      sender:
-        employee?._id,
-
-      permission:
-        "job.listing.read",
-
-      title:
-        "Job Updated",
-
-      message:
-        `${job.title} job has been updated successfully`,
-
-      type:
-        "JOB_UPDATED",
-
-      entityId:
-        job._id,
-
-      entityModel:
-        "Job",
-
+      sender: employee?._id,
+      permission: "career.job..update",
+      title: "Job Updated",
+      message: `Job "${job.title}" has been updated`,
+      type: "JOB_UPDATED",
+      entityId: job._id,
+      entityModel: "Job",
       metadata: {
-        jobId:
-          job.jobId,
-
-        title:
-          job.title,
-
-        slug:
-          job.slug,
-
-        department:
-          job.department,
-
-        employmentType:
-          job.employmentType,
-
-        workplaceType:
-          job.workplaceType,
-
-        experienceLevel:
-          job.experienceLevel,
-
-        status:
-          job.status,
-
-        updatedBy:
-          employee?.email,
+        jobId: job.jobId,
+        title: job.title,
+        slug: job.slug,
+        updatedBy: employee?.email || null,
       },
     });
-
-    return job;
-
-  } catch (error) {
-
-    throw error;
-
+  } catch (err) {
+    console.error("Notification failed on update job:", err.message);
   }
-};
 
+  return job;
+};
 
 /* =========================================================
-   GET ALL JOBS
+   GET JOBS
 ========================================================= */
-export const getJobsService = async ({
-  pagination,
-  filters,
-}) => {
-  try {
-    const {
-      skip,
-      limit,
-      page,
-    } = pagination;
+export const getJobsService = async ({ pagination, filters }) => {
+  const { skip, limit, page } = pagination;
+  const { search, status, department, employmentType, workplaceType, experienceLevel } = filters;
 
-    const {
-      search,
-      status,
-      department,
-      employmentType,
-      workplaceType,
-      experienceLevel,
-    } = filters;
+  const query = {};
 
-    /* ---------- CACHE KEY ---------- */
+  if (status && status !== "all") query.status = status;
+  if (department) query.department = department;
+  if (employmentType) query.employmentType = employmentType;
+  if (workplaceType) query.workplaceType = workplaceType;
+  if (experienceLevel) query.experienceLevel = experienceLevel;
+  if (search) query.$text = { $search: search };
 
-    const cacheKey = `JOB:ALL:${JSON.stringify({
-      page,
-      limit,
-      search,
-      status,
-      department,
-      employmentType,
-      workplaceType,
-      experienceLevel,
-    })}`;
+  /* ---------- CACHE KEY ---------- */
+  const cacheKey = !search
+    ? `JOB:LIST:${page}:${limit}:${status || "all"}:${department || "all"}:${employmentType || "all"}:${workplaceType || "all"}:${experienceLevel || "all"}`
+    : null;
 
-    /* ---------- CACHE CHECK ---------- */
-
-    const cachedData =
-      await getCache(cacheKey);
-
-    if (cachedData) {
-
-      console.log(
-        "JOB CACHE HIT:",
-        cacheKey
-      );
-
-      return cachedData;
+  /* ---------- CACHE CHECK ---------- */
+  if (cacheKey) {
+    const cached = await getCache(cacheKey);
+    if (cached) {
+      console.log("CACHE HIT:", cacheKey);
+      return cached;
     }
-
-    /* ---------- QUERY ---------- */
-
-    const query = {};
-
-    if (
-      status &&
-      status !== "all"
-    ) {
-      query.status = status;
-    }
-
-    if (department) {
-      query.department =
-        department;
-    }
-
-    if (employmentType) {
-      query.employmentType =
-        employmentType;
-    }
-
-    if (workplaceType) {
-      query.workplaceType =
-        workplaceType;
-    }
-
-    if (experienceLevel) {
-      query.experienceLevel =
-        experienceLevel;
-    }
-
-    if (search) {
-      query.$text = {
-        $search: search,
-      };
-    }
-    /* ---------- FETCH DATA ---------- */
-    const [
-      totalJobs,
-      jobs,
-    ] = await Promise.all([
-      Job.countDocuments(query),
-
-      Job.find(query)
-        .sort({
-          createdAt: -1,
-        })
-        .skip(skip)
-        .limit(limit)
-        .lean(),
-    ]);
-
-    /* ---------- RESPONSE ---------- */
-
-    const result = {
-      jobs,
-
-      pagination: {
-        totalJobs,
-
-        currentPage: page,
-
-        totalPages:
-          Math.ceil(
-            totalJobs / limit
-          ),
-
-        limit,
-
-        hasNextPage:
-          page <
-          Math.ceil(
-            totalJobs / limit
-          ),
-
-        hasPrevPage:
-          page > 1,
-      },
-    };
-
-    /* ---------- STORE CACHE ---------- */
-
-    await setCache(
-      cacheKey,
-      result
-    );
-
-    return result;
-
-  } catch (error) {
-
-    console.error(
-      "GET JOBS SERVICE ERROR:",
-      error
-    );
-
-    throw {
-      message:
-        error.message ||
-        "Failed to fetch jobs",
-
-      statusCode:
-        error.statusCode || 500,
-
-      errorCode:
-        error.errorCode ||
-        "GET_JOBS_FAILED",
-
-      details:
-        error.message,
-    };
-
   }
-};
 
+  /* ---------- FETCH ---------- */
+  const [jobs, totalItems] = await Promise.all([
+    Job.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+    Job.countDocuments(query),
+  ]);
+
+  const totalPages = Math.ceil(totalItems / limit);
+
+  const result = {
+    jobs,
+    pagination: {
+      totalItems,
+      totalPages,
+      currentPage: page,
+      nextPage: page < totalPages ? page + 1 : null,
+      prevPage: page > 1 ? page - 1 : null,
+      limit,
+    },
+  };
+
+  /* ---------- STORE CACHE ---------- */
+  if (cacheKey) await setCache(cacheKey, result);
+
+  return result;
+};
 
 /* =========================================================
    GET PUBLISHED JOBS
 ========================================================= */
+export const getPublishedJobsService = async ({ pagination, filters }) => {
+  const { skip, limit, page } = pagination;
+  const { search, department, employmentType, workplaceType, experienceLevel } = filters;
 
-export const getPublishedJobsService =
-  async ({
-    pagination,
-    filters,
-  }) => {
+  const query = { status: "published" };
 
-    try {
+  if (department) query.department = department;
+  if (employmentType) query.employmentType = employmentType;
+  if (workplaceType) query.workplaceType = workplaceType;
+  if (experienceLevel) query.experienceLevel = experienceLevel;
+  if (search) query.$text = { $search: search };
 
-      const {
-        skip,
-        limit,
-        page,
-      } = pagination;
+  /* ---------- CACHE KEY ---------- */
+  const cacheKey = !search
+    ? `JOB:PUBLISHED:${page}:${limit}:${department || "all"}:${employmentType || "all"}:${workplaceType || "all"}:${experienceLevel || "all"}`
+    : null;
 
-      const {
-        search,
-        department,
-        employmentType,
-        workplaceType,
-        experienceLevel,
-      } = filters;
-
-      /* ---------- CACHE KEY ---------- */
-
-      const cacheKey = `JOB:PUBLISHED:${JSON.stringify({
-        page,
-        limit,
-        search,
-        department,
-        employmentType,
-        workplaceType,
-        experienceLevel,
-      })}`;
-
-      /* ---------- CACHE CHECK ---------- */
-
-      const cachedData =
-        await getCache(cacheKey);
-
-      if (cachedData) {
-
-        console.log(
-          "PUBLISHED JOB CACHE HIT:",
-          cacheKey
-        );
-
-        return cachedData;
-      }
-
-      /* ---------- QUERY ---------- */
-
-      const query = {
-        status: "published",
-      };
-
-      if (department) {
-        query.department =
-          department;
-      }
-
-      if (employmentType) {
-        query.employmentType =
-          employmentType;
-      }
-
-      if (workplaceType) {
-        query.workplaceType =
-          workplaceType;
-      }
-
-      if (experienceLevel) {
-        query.experienceLevel =
-          experienceLevel;
-      }
-
-      if (search) {
-        query.$text = {
-          $search: search,
-        };
-      }
-
-      /* ---------- FETCH DATA ---------- */
-
-      const [
-        totalJobs,
-        jobs,
-      ] = await Promise.all([
-        Job.countDocuments(query),
-
-        Job.find(query)
-          .sort({
-            isFeatured: -1,
-            createdAt: -1,
-          })
-          .skip(skip)
-          .limit(limit)
-          .lean(),
-      ]);
-
-      /* ---------- RESPONSE ---------- */
-
-      const result = {
-        jobs,
-
-        pagination: {
-          totalJobs,
-
-          currentPage: page,
-
-          totalPages:
-            Math.ceil(
-              totalJobs / limit
-            ),
-
-          limit,
-
-          hasNextPage:
-            page <
-            Math.ceil(
-              totalJobs / limit
-            ),
-
-          hasPrevPage:
-            page > 1,
-        },
-      };
-
-      /* ---------- STORE CACHE ---------- */
-
-      await setCache(
-        cacheKey,
-        result
-      );
-
-      return result;
-
-    } catch (error) {
-
-      console.error(
-        "GET PUBLISHED JOBS ERROR:",
-        error
-      );
-
-      throw {
-        message:
-          error.message ||
-          "Failed to fetch published jobs",
-
-        statusCode:
-          error.statusCode || 500,
-
-        errorCode:
-          error.errorCode ||
-          "GET_PUBLISHED_JOBS_FAILED",
-
-        details:
-          error.message,
-      };
-
+  /* ---------- CACHE CHECK ---------- */
+  if (cacheKey) {
+    const cached = await getCache(cacheKey);
+    if (cached) {
+      console.log("CACHE HIT:", cacheKey);
+      return cached;
     }
+  }
+
+  /* ---------- FETCH ---------- */
+  const [jobs, totalItems] = await Promise.all([
+    Job.find(query).sort({ isFeatured: -1, createdAt: -1 }).skip(skip).limit(limit).lean(),
+    Job.countDocuments(query),
+  ]);
+
+  const totalPages = Math.ceil(totalItems / limit);
+
+  const result = {
+    jobs,
+    pagination: {
+      totalItems,
+      totalPages,
+      currentPage: page,
+      nextPage: page < totalPages ? page + 1 : null,
+      prevPage: page > 1 ? page - 1 : null,
+      limit,
+    },
   };
 
-export const getJobByIdService = async ({ jobId }) => {
-  const job = await Job.findOne({ jobId }).lean();
+  /* ---------- STORE CACHE ---------- */
+  if (cacheKey) await setCache(cacheKey, result);
 
-  if (!job) {
-    throw new Error("Job not found");
-  }
-
-  return job;
+  return result;
 };
 
-export const getJobBySlugService = async ({ slug }) => {
-  const job = await Job.findOne({ slug, status: "published" }).lean();
-
+/* =========================================================
+   GET JOB BY ID
+========================================================= */
+export const getJobByIdService = async ({ jobId }) => {
+  /* ---------- FETCH ---------- */
+  const job = await Job.findOne({ jobId }).lean();
   if (!job) {
-    throw new Error("Job not found");
+    const error = new Error("Job not found");
+    error.statusCode = 404;
+    error.errorCode = "JOB_NOT_FOUND";
+    throw error;
   }
-
   return job;
 };
 
 /* =========================================================
-   DELETE JOB SERVICE
+   GET JOB BY SLUG
 ========================================================= */
+export const getJobBySlugService = async ({ slug }) => {
+  /* ---------- FETCH ---------- */
+  const job = await Job.findOne({ slug, status: "published" }).lean();
+  if (!job) {
+    const error = new Error("Job not found");
+    error.statusCode = 404;
+    error.errorCode = "JOB_NOT_FOUND";
+    throw error;
+  }
+  return job;
+};
 
-export const deleteJobService = async ({
-  jobId,
-  employee,
-  permission,
-}) => {
+/* =========================================================
+   DELETE JOB
+========================================================= */
+export const deleteJobService = async ({ jobId, employee }) => {
+  const job = await Job.findOne({ jobId });
+  if (!job) {
+    const error = new Error("Job not found");
+    error.statusCode = 404;
+    error.errorCode = "JOB_NOT_FOUND";
+    throw error;
+  }
+
+  await job.deleteOne();
+
+  /* ---------- CLEAR CACHE ---------- */
+  await clearJobCache();
+
+  /* ---------- AUDIT ---------- */
   try {
-
-    /* ---------- VALIDATION ---------- */
-
-    if (!jobId) {
-
-      const err = new Error(
-        "JobId is required"
-      );
-
-      err.statusCode = 400;
-
-      err.errorCode =
-        "VALIDATION_ERROR";
-
-      throw err;
-    }
-
-    /* ---------- FIND JOB ---------- */
-
-    const job = await Job.findOne({
-      jobId,
-    });
-
-    if (!job) {
-
-      const err = new Error(
-        "Job not found"
-      );
-
-      err.statusCode = 404;
-
-      err.errorCode =
-        "JOB_NOT_FOUND";
-
-      throw err;
-    }
-    /* ---------- DELETE JOB ---------- */
-
-    await job.deleteOne();
-
-    /* ---------- CLEAR CACHE ---------- */
-
-    await clearJobCache();
-
-    /* ---------- AUDIT LOG ---------- */
-
     await PermissionAudit.create({
-      permissionAuditId:
-        uuidv6(),
-
-      actionBy:
-        employee._id,
-
-      actionByEmail:
-        employee.email,
-
-      actionFor:
-        job._id,
-
-      actionForEmail:
-        null,
-
-      action: `Job Deleted | ${job.title}`,
-
-      permission:
-        permission ||
-        "career.job.delete",
-
+      permissionAuditId: uuidv6(),
+      actionBy: employee?._id,
+      actionByEmail: employee?.email,
+      actionFor: job._id,
+      actionForEmail: null,
+      action: job.title,
+      permission: "career.job.delete",
       actionType: "Delete",
     });
+  } catch (err) {
+    console.error("Audit log failed on delete job:", err.message);
+  }
 
-    /* ---------- SEND NOTIFICATION ---------- */
-
+  /* ---------- NOTIFICATION ---------- */
+  try {
     await sendNotification({
-      sender:
-        employee._id,
-
-      permission:
-        "job.listing.read",
-
-      title:
-        "Job Deleted",
-
-      message: `${job.title} job has been deleted successfully`,
-
+      sender: employee?._id || null,
+      permission: "career.job..delete",
+      title: "Job Deleted",
+      message: `Job "${job.title}" has been deleted`,
       type: "JOB_DELETED",
-
-      entityId:
-        job._id,
-
+      entityId: job._id,
       entityModel: "Job",
-
       metadata: {
-        deletedJob:
-          deletedJobData,
-
-        deletedBy:
-          employee.email,
+        jobId: job.jobId,
+        title: job.title,
+        deletedBy: employee?.email || null,
       },
     });
-
-    /* ---------- RESPONSE ---------- */
-
-    return {
-      deletedJobId:
-        job.jobId,
-
-      title:
-        job.title,
-    };
-
-  } catch (error) {
-
-    console.error(
-      "Delete Job Service Error:",
-      error
-    );
-
-    throw error;
-
+  } catch (err) {
+    console.error("Notification failed on delete job:", err.message);
   }
+  return job;
 };

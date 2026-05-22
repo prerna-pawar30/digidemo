@@ -23,7 +23,7 @@ export const employeeWelcomeEmail = ( firstName, email, password ) => {
           <p style="margin-top: 20px;">Please log in using the credentials above and change your password immediately for security.</p>
 
           <p style="margin-top: 25px;">
-            <a href="https://manage.digident.in/login" 
+            <a href="https://adminfrontend00.netlify.app/login" 
                style="background-color: #0078d7; color: white; padding: 10px 16px; border-radius: 5px; text-decoration: none;">
               Login to Your Account
             </a>

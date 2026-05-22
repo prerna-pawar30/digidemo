@@ -6,35 +6,20 @@ import { v6 as uuidv6 } from "uuid";
 import { sendNotification } from "../services/notification.service.js";
 
 /* ================= COMMON OAUTH HANDLER ================= */
-
-  /* GOOGLE */
-  passport.use(
-    new GoogleStrategy(
-      {
-        clientID: process.env.GOOGLE_CLIENT_ID,
-        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-        callbackURL: process.env.GOOGLE_CALLBACK_URL,
-      },(accessToken, refreshToken, profile, done) =>
-        handleOAuth(profile, "google", done)
-    )
-  );
-
 export async function handleOAuth(profile, provider, done) {
   try {
-
     const email = profile.emails?.[0]?.value?.toLowerCase();
     if (!email) {
       return done(null, false, { message: `No email from ${provider}` });
     }
 
-    let user = await User.findOne({ email });
-
     const firstName = profile.name?.givenName || "Unknown";
     const lastName = profile.name?.familyName || "";
     const avatar = profile.photos?.[0]?.value;
 
-    if (!user) {
+    let user = await User.findOne({ email });
 
+    if (!user) {
       user = await User.create({
         userId: uuidv6(),
         firstName,
@@ -47,21 +32,26 @@ export async function handleOAuth(profile, provider, done) {
         password: `${provider.toUpperCase()}_AUTH_USER`,
       });
 
-          /* ---------- SEND NOTIFICATION ---------- */
-      await sendNotification({
-        permission: "customer.listing.read",
-        title: "New User Registered",
-        message: `${firstName} ${lastName} registered using ${provider}`,
-        type: "USER_REGISTERED",
-        entityId: user._id,
-        entityModel: "User",
-        metadata: {
-          userId: user.userId,
-          fullName: `${firstName} ${lastName}`,
-          email: user.email,
-          provider,
-        },
-      });
+      /* ---------- SEND NOTIFICATION ---------- */
+      try {
+        await sendNotification({
+          permission: "customer.listing.read",
+          title: "New User Registered",
+          message: `${firstName} ${lastName} registered using ${provider}`,
+          type: "USER_REGISTERED",
+          entityId: user._id,
+          entityModel: "User",
+          metadata: {
+            userId: user.userId,
+            fullName: `${firstName} ${lastName}`,
+            email: user.email,
+            provider,
+          },
+        });
+      } catch (notifyErr) {
+        console.error("Notification failed:", notifyErr.message);
+      }
+
     } else {
       if (user.provider !== provider) {
         user.provider = provider;
@@ -73,20 +63,29 @@ export async function handleOAuth(profile, provider, done) {
       }
       await user.save();
     }
+
     return done(null, user);
   } catch (err) {
-    console.log("errnor in pasport function");
+    console.error("Error in passport OAuth handler:", err.message);
     return done(err, false);
   }
 }
 
 /* ================= PASSPORT SETUP ================= */
-
-
-
 export default function setupPassport() {
 
-
+  /* GOOGLE */
+  passport.use(
+    new GoogleStrategy(
+      {
+        clientID: process.env.GOOGLE_CLIENT_ID,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+        callbackURL: process.env.GOOGLE_CALLBACK_URL,
+      },
+      (accessToken, refreshToken, profile, done) =>
+        handleOAuth(profile, "google", done)
+    )
+  );
 
   /* MICROSOFT */
   passport.use(
@@ -103,7 +102,6 @@ export default function setupPassport() {
   );
 
   /* PASSPORT SESSION */
-
   passport.serializeUser((user, done) => done(null, user.id));
 
   passport.deserializeUser(async (id, done) => {

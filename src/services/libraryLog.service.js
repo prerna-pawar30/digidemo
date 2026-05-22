@@ -3,57 +3,80 @@ import EmailVerifyDummy from "../models/ecommarace/dummyemailverify.model.js";
 import { otpVerificationTemplate } from "../config/templates/otpEmailTemplate.js";
 import { sendZohoMail } from "./ZohoEmail/zohoMail.service.js";
 import { v6 as uuidv6 } from "uuid";
-import { adminLibraryRequestTemplate} from "../config/templates/adminLibraryRequestTemplat.js";
+import { adminLibraryRequestTemplate } from "../config/templates/adminLibraryRequestTemplat.js";
 import { userLibraryRequestTemplate } from "../config/templates/userLibraryRequestTemplat.js";
-import { ADMIN_EMAILS } from "../config/adminmail.js"
-import { getPagination } from "../helpers/pagination.helper.js";
+import { ADMIN_EMAILS } from "../config/adminmail.js";
+import { sendNotification } from "./notification.service.js";
+import { redis as redisClient } from "../config/redis.config.js";
 import mongoose from "mongoose";
-/**
- * @function sendEmailOtpService
- *
- * @params
- * {
- *   email
- * }
- *
- * @process
- * 1. Find customer by email
- * 2. If already verified, return isVerified true
- * 3. Generate OTP and expiry
- * 4. Save or update OTP in EmailVerifyDummy
- * 5. Send OTP email
- *
- * @returns
- * {
- *   isVerified: Boolean
- * }
- */
+
+/* =========================================================
+   CACHE CONFIG
+========================================================= */
+const CACHE_TTL = 60 * 60;
+
+/* =========================================================
+   CACHE HELPERS
+========================================================= */
+const getCache = async (key) => {
+  try {
+    const cached = await redisClient.get(key);
+    if (!cached) return null;
+    return JSON.parse(cached);
+  } catch (err) {
+    console.error("REDIS GET CACHE ERROR:", err.message);
+    return null;
+  }
+};
+
+const setCache = async (key, data) => {
+  try {
+    await redisClient.set(key, JSON.stringify(data), { ex: CACHE_TTL });
+  } catch (err) {
+    console.error("REDIS SET CACHE ERROR:", err.message);
+  }
+};
+
+const clearLibraryCache = async () => {
+  try {
+    const keys = await redisClient.keys("LIBRARY:*");
+    if (keys.length > 0) {
+      await redisClient.del(...keys);
+      console.log("LIBRARY CACHE CLEARED:", keys);
+    }
+  } catch (err) {
+    console.error("REDIS LIBRARY CACHE CLEAR ERROR:", err.message);
+  }
+};
+
+/* =========================================================
+   SEND EMAIL OTP
+========================================================= */
 export const sendEmailOtpService = async ({ email }) => {
-  /* ---------- FIND CUSTOMER ---------- */
   const customer = await CustomerData.findOne({ email });
-  /* ---------- IF EMAIL ALREADY VERIFIED ---------- */
+
   if (customer && customer.isEmailVerified) {
     return { isVerified: true };
   }
-  /* ---------- GENERATE OTP ---------- */
+
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
   const otpExpiry = new Date(Date.now() + 5 * 60 * 1000);
-  /* ---------- SAVE OR UPDATE OTP ---------- */
+
   await EmailVerifyDummy.findOneAndUpdate(
     { email },
     { email, otp, otpExpiry },
     { upsert: true, new: true }
   );
-  /* ---------- SEND OTP EMAIL ---------- */
+
   const htmlBody = otpVerificationTemplate(email, otp);
-  await sendZohoMail(
-    email,
-    "Your OTP for Email Verification",
-    htmlBody
-  );
+  await sendZohoMail(email, "Your OTP for Email Verification", htmlBody);
+
   return { isVerified: false };
 };
 
+/* =========================================================
+   VERIFY OTP AND CREATE CUSTOMER
+========================================================= */
 export const verifyOtpAndCreateCustomerService = async ({
   email,
   otp,
@@ -65,47 +88,72 @@ export const verifyOtpAndCreateCustomerService = async ({
   lastName,
   mobileNumber,
   companyName,
-  address
+  address,
 }) => {
-  /* ---------- NORMALIZE EMAIL ---------- */
   const normalizedEmail = email.toLowerCase().trim();
-  /* ---------- FIND EXISTING CUSTOMER ---------- */
+  const isScanbridge = category.toLowerCase() === "scanbridge";
   const existingUser = await CustomerData.findOne({ email: normalizedEmail });
   /* ---------- SEND LIBRARY REQUEST EMAILS FOR SCANBRIDGE ---------- */
-  if (category.toLowerCase() === "scanbridge") {
-    await sendZohoMail(
-       ADMIN_EMAILS.join(","), 
-      `New Library Request for ${brand} - ${category}`,
-      adminLibraryRequestTemplate(normalizedEmail, brand, category)
-    );
-    await sendZohoMail(
-      normalizedEmail,
-      "Your Library Request Has Been Received",
-      userLibraryRequestTemplate(brand, category)
-    );
+  if (isScanbridge) {
+    try {
+      await sendZohoMail(
+        ADMIN_EMAILS.join(","),
+        `New Library Request for ${brand} - ${category}`,
+        adminLibraryRequestTemplate(normalizedEmail, brand, category)
+      );
+      await sendZohoMail(
+        normalizedEmail,
+        "Your Library Request Has Been Received",
+        userLibraryRequestTemplate(brand, category)
+      );
+    } catch (err) {
+      console.error("Scanbridge email failed:", err.message);
+    }
   }
+
+  /* ---------- BUILD LOG ENTRY (no libraryObjectId/libraryId for scanbridge) ---------- */
+  const libraryLogEntry = {
+    ...(isScanbridge ? {} : { libraryObjectId, libraryId }),
+    brandName: brand,
+    category,
+    date: new Date(),
+  };
+
   /* ---------- IF CUSTOMER ALREADY VERIFIED ---------- */
   if (existingUser && existingUser.isEmailVerified) {
     await CustomerData.updateOne(
       { _id: existingUser._id },
-      {
-        $push: {
-          logLibrary: {
-            libraryObjectId,
-            libraryId,
-            brandName: brand,
-            category,
-            date: new Date()
-          }
-        }
-      }
+      { $push: { logLibrary: libraryLogEntry } }
     );
+
+    await clearLibraryCache();
+
+    try {
+      await sendNotification({
+        sender: null,
+        permission: "library.listing.read",
+        title: "Library Downloaded",
+        message: `${normalizedEmail} downloaded "${brand}" library (${category})`,
+        type: "LIBRARY_DOWNLOADED",
+        entityId: existingUser._id,
+        entityModel: "CustomerData",
+        metadata: {
+          customerId: existingUser._id,
+          email: normalizedEmail,
+          ...(isScanbridge ? {} : { libraryId }),
+          brand,
+          category,
+        },
+      });
+    } catch (err) {
+      console.error("Notification failed on library download:", err.message);
+    }
 
     return {
       userId: existingUser._id,
       email: existingUser.email,
       isVerified: true,
-      message: "Email already verified, library log updated"
+      message: "Email already verified, library log updated",
     };
   }
 
@@ -117,9 +165,7 @@ export const verifyOtpAndCreateCustomerService = async ({
     throw error;
   }
 
-  const otpRecord = await EmailVerifyDummy.findOne({
-    email: normalizedEmail
-  });
+  const otpRecord = await EmailVerifyDummy.findOne({ email: normalizedEmail });
 
   if (!otpRecord) {
     const error = new Error("OTP not found. Please request again.");
@@ -137,7 +183,6 @@ export const verifyOtpAndCreateCustomerService = async ({
 
   if (otpRecord.otpExpiry < new Date()) {
     await EmailVerifyDummy.deleteOne({ email: normalizedEmail });
-
     const error = new Error("OTP expired. Please request again.");
     error.statusCode = 400;
     error.errorCode = "OTP_EXPIRED";
@@ -154,84 +199,106 @@ export const verifyOtpAndCreateCustomerService = async ({
     companyName,
     address,
     isEmailVerified: true,
-    logLibrary: [
-      {
-        libraryObjectId,
-        libraryId,
-        brandName: brand,
-        category,
-        date: new Date()
-      }
-    ]
+    logLibrary: [libraryLogEntry],
   });
 
-  /* ---------- DELETE USED OTP ---------- */
   await EmailVerifyDummy.deleteOne({ email: normalizedEmail });
+  await clearLibraryCache();
+
+  try {
+    await sendNotification({
+      sender: null,
+      permission: "library.listing.read",
+      title: "Library Downloaded",
+      message: `${normalizedEmail} downloaded "${brand}" library (${category})`,
+      type: "LIBRARY_DOWNLOADED",
+      entityId: customer._id,
+      entityModel: "CustomerData",
+      metadata: {
+        customerId: customer._id,
+        email: normalizedEmail,
+        ...(isScanbridge ? {} : { libraryId }),
+        brand,
+        category,
+      },
+    });
+  } catch (err) {
+    console.error("Notification failed on library download:", err.message);
+  }
 
   return {
     userId: customer._id,
     email: customer.email,
     isVerified: true,
-    message: "OTP verified and customer created successfully"
+    message: "OTP verified and customer created successfully",
   };
 };
 
+/* =========================================================
+   GET ALL CONSUMERS
+========================================================= */
 export const getAllConsumersService = async ({ skip, limit, page }) => {
-  const [users, totalUsers] = await Promise.all([
-    CustomerData.find({})
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .lean(),
+  const cacheKey = `LIBRARY:CONSUMERS:${page}:${limit}`;
 
-    CustomerData.countDocuments()
-  ]);
-
-  return {
-    users,
-    pagination: {
-      currentPage: page,
-      totalPages: Math.ceil(totalUsers / limit),
-      totalUsers,
-      limit
-    }
-  };
-};
-
-export const getEmailVerifyDummyService = async ({
-  email,
-  skip,
-  limit,
-  page
-}) => {
-
-  const filter = {};
-
-  if (email) {
-    filter.email = email.toLowerCase();
+  const cached = await getCache(cacheKey);
+  if (cached) {
+    console.log("LIBRARY CACHE HIT:", cacheKey);
+    return cached;
   }
 
-  const [records, total] = await Promise.all([
-    EmailVerifyDummy.find(filter)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .lean(),
-
-    EmailVerifyDummy.countDocuments(filter)
+  const [users, totalItems] = await Promise.all([
+    CustomerData.find({}).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+    CustomerData.countDocuments(),
   ]);
+
+  const totalPages = Math.ceil(totalItems / limit);
+
+  const result = {
+    users,
+    pagination: {
+      totalItems,
+      totalPages,
+      currentPage: page,
+      nextPage: page < totalPages ? page + 1 : null,
+      prevPage: page > 1 ? page - 1 : null,
+      limit,
+    },
+  };
+
+  await setCache(cacheKey, result);
+  return result;
+};
+
+/* =========================================================
+   GET EMAIL VERIFY DUMMY
+========================================================= */
+export const getEmailVerifyDummyService = async ({ email, skip, limit, page }) => {
+  const filter = {};
+  if (email) filter.email = email.toLowerCase();
+
+  const [records, totalItems] = await Promise.all([
+    EmailVerifyDummy.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+    EmailVerifyDummy.countDocuments(filter),
+  ]);
+
+  const totalPages = Math.ceil(totalItems / limit);
 
   return {
     records,
     pagination: {
+      totalItems,
+      totalPages,
       currentPage: page,
-      totalPages: Math.ceil(total / limit),
-      totalRecords: total,
-      limit
-    }
+      nextPage: page < totalPages ? page + 1 : null,
+      prevPage: page > 1 ? page - 1 : null,
+      limit,
+    },
   };
 };
 
+/* =========================================================
+   GET LIBRARY DASHBOARD
+========================================================= */
 export const getLibraryDashboardService = async ({
   days,
   groupBy,
@@ -239,16 +306,23 @@ export const getLibraryDashboardService = async ({
   categoryFilter,
   brandFilter,
 }) => {
+  const cacheKey = `LIBRARY:DASHBOARD:${days}:${groupBy}:${limit}:${categoryFilter || "all"}:${brandFilter || "all"}`;
+
+  const cached = await getCache(cacheKey);
+  if (cached) {
+    console.log("LIBRARY CACHE HIT:", cacheKey);
+    return cached;
+  }
+
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
 
-  /* ---------- MATCH STAGE ---------- */
   const matchStage = {
     "logLibrary.date": { $gte: startDate },
   };
   if (categoryFilter) matchStage["logLibrary.category"] = categoryFilter;
   if (brandFilter) matchStage["logLibrary.brandName"] = brandFilter;
-  /* ---------- GROUP STAGE ---------- */
+
   let groupStage;
   switch (groupBy) {
     case "category":
@@ -258,7 +332,6 @@ export const getLibraryDashboardService = async ({
         lastUsedAt: { $max: "$logLibrary.date" },
       };
       break;
-
     case "brand":
       groupStage = {
         _id: "$logLibrary.brandName",
@@ -266,7 +339,6 @@ export const getLibraryDashboardService = async ({
         lastUsedAt: { $max: "$logLibrary.date" },
       };
       break;
-
     default:
       groupStage = {
         _id: "$logLibrary.libraryObjectId",
@@ -278,7 +350,6 @@ export const getLibraryDashboardService = async ({
       };
   }
 
-  /* ---------- AGGREGATION ---------- */
   const data = await CustomerData.aggregate([
     { $unwind: "$logLibrary" },
     { $match: matchStage },
@@ -287,7 +358,7 @@ export const getLibraryDashboardService = async ({
     { $limit: limit },
   ]);
 
-  return {
+  const result = {
     days,
     groupBy,
     category: categoryFilter || "All",
@@ -295,8 +366,14 @@ export const getLibraryDashboardService = async ({
     total: data.length,
     data,
   };
+
+  await setCache(cacheKey, result);
+  return result;
 };
 
+/* =========================================================
+   DELETE OTP BY EMAIL
+========================================================= */
 export const deleteOtpByEmailService = async (email) => {
   const deletedRecord = await EmailVerifyDummy.findOneAndDelete({
     email: email.toLowerCase(),
@@ -308,32 +385,31 @@ export const deleteOtpByEmailService = async (email) => {
     error.errorCode = "OTP_NOT_FOUND";
     throw error;
   }
+
   return deletedRecord;
 };
 
-export const getScanbridgeLibraryService = async ({
-  page = 1,
-  limit = 12
-}) => {
-  /* ---------- PARSE PAGINATION ---------- */
+/* =========================================================
+   GET SCANBRIDGE LIBRARY
+========================================================= */
+export const getScanbridgeLibraryService = async ({ page = 1, limit = 12 }) => {
   const currentPage = Number(page) || 1;
   const perPage = Number(limit) || 12;
   const skip = (currentPage - 1) * perPage;
 
-  /* ---------- FETCH CUSTOMERS ---------- */
+  const cacheKey = `LIBRARY:SCANBRIDGE:${currentPage}:${perPage}`;
+
+  const cached = await getCache(cacheKey);
+  if (cached) {
+    console.log("LIBRARY CACHE HIT:", cacheKey);
+    return cached;
+  }
+
   const customers = await CustomerData.find(
     { "logLibrary.category": { $regex: /^scanbridge$/i } },
-    {
-      firstName: 1,
-      lastName: 1,
-      email: 1,
-      companyName: 1,
-      logLibrary: 1,
-      mobileNumber:1,
-    }
+    { firstName: 1, lastName: 1, email: 1, companyName: 1, logLibrary: 1, mobileNumber: 1 }
   ).lean();
 
-  /* ---------- PREPARE RESPONSE ---------- */
   const scanbridgeLibrary = [];
 
   for (const customer of customers) {
@@ -347,48 +423,50 @@ export const getScanbridgeLibraryService = async ({
         firstName: customer.firstName,
         lastName: customer.lastName,
         email: customer.email,
-        mobileNumber:customer.mobileNumber,
+        mobileNumber: customer.mobileNumber,
         companyName: customer.companyName,
         logId: log._id,
-        libraryObjectId: log.libraryObjectId || null,
-        libraryId: log.libraryId || null,
         brandName: log.brandName || null,
         category: log.category,
         isdelivered: log.isdelivered ?? false,
-        date: log.date
+        date: log.date,
       });
     }
   }
 
-  /* ---------- SORT LATEST FIRST ---------- */
   scanbridgeLibrary.sort((a, b) => new Date(b.date) - new Date(a.date));
-  /* ---------- PAGINATION ---------- */
-  const total = scanbridgeLibrary.length;
-  const paginatedScanbridgeLibrary = scanbridgeLibrary.slice(
-    skip,
-    skip + perPage
-  );
 
-  return {
+  const totalItems = scanbridgeLibrary.length;
+  const totalPages = Math.ceil(totalItems / perPage);
+  const paginatedScanbridgeLibrary = scanbridgeLibrary.slice(skip, skip + perPage);
+
+  const result = {
     scanbridgeLibrary: paginatedScanbridgeLibrary,
-    pagination: getPagination({
-      total,
-      page: currentPage,
-      limit: perPage
-    })
+    pagination: {
+      totalItems,
+      totalPages,
+      currentPage: currentPage,
+      nextPage: currentPage < totalPages ? currentPage + 1 : null,
+      prevPage: currentPage > 1 ? currentPage - 1 : null,
+      limit: perPage,
+    },
   };
+
+  await setCache(cacheKey, result);
+  return result;
 };
 
-export const updateScanbridgeLibraryService = async ({
-  customerId,
-  logId,
-  isdelivered,
-}) => {
-
+/* =========================================================
+   UPDATE SCANBRIDGE LIBRARY
+========================================================= */
+export const updateScanbridgeLibraryService = async ({ customerId, logId, isdelivered }) => {
   const customer = await CustomerData.findById(customerId);
 
   if (!customer) {
-    throw new Error("Customer not found");
+    const error = new Error("Customer not found");
+    error.statusCode = 404;
+    error.errorCode = "CUSTOMER_NOT_FOUND";
+    throw error;
   }
 
   const libraryLog = customer.logLibrary.find(
@@ -396,12 +474,16 @@ export const updateScanbridgeLibraryService = async ({
   );
 
   if (!libraryLog) {
-    throw new Error("Log not found");
+    const error = new Error("Log not found");
+    error.statusCode = 404;
+    error.errorCode = "LOG_NOT_FOUND";
+    throw error;
   }
 
   libraryLog.isdelivered = isdelivered;
-
   await customer.save({ validateBeforeSave: false });
+
+  await clearLibraryCache();
 
   return libraryLog;
 };

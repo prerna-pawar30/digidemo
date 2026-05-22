@@ -3,6 +3,7 @@ import { handleError, sendError } from "../../helpers/error.helper.js";
 import { createCouponService, deleteCouponService, filterCouponsService, getSingleCouponService, updateCouponService } from "../../services/coupon.service.js";
 import { sendSuccess } from "../../helpers/response.helper.js";
 import { getPagination } from "../../helpers/pagination.helper.js";
+import Employee from "../../models/manage/employee.model.js";
 
 
 /**
@@ -40,8 +41,23 @@ export const createCoupon = async (req, res) => {
         details: error.details.map(e => e.message)
       });
     }
+     /* ---------- FETCH EMPLOYEE ---------- */
+     const employee = await Employee.findOne({
+      email: req.user.email
+    });
+    if (!employee) {
+      return sendError(res, {
+        message: "Employee not found",
+        statusCode: 404,
+        errorCode: "EMPLOYEE_NOT_FOUND"
+      });
+    }
     /* ---------- SERVICE ---------- */
-    const coupon = await createCouponService(value);
+    const coupon = await createCouponService({
+      data: value,
+      employee, // optional
+      permission: req.permission // optional
+    });
     return sendSuccess(
       res,
       coupon,
@@ -90,10 +106,22 @@ export const updateCoupon = async (req, res) => {
         errorCode: "VALIDATION_ERROR"
       });
     }
+
+     /* ---------- FETCH EMPLOYEE ---------- */
+        const employee = await Employee.findOne({
+          email: req.user.email
+        });
+        if (!employee) {
+          return sendError(res, {
+            message: "Employee not found",
+            statusCode: 404,
+            errorCode: "EMPLOYEE_NOT_FOUND"
+          });
+        }
     /* ---------- SERVICE ---------- */
     const coupon = await updateCouponService({
       couponId,
-      data: value
+      data: value,employee
     });
     return sendSuccess(
       res,
@@ -247,8 +275,20 @@ export const deleteCoupon = async (req, res) => {
       });
     }
 
+        /* ---------- FETCH EMPLOYEE ---------- */
+        const employee = await Employee.findOne({
+          email: req.user.email
+        });
+        if (!employee) {
+          return sendError(res, {
+            message: "Employee not found",
+            statusCode: 404,
+            errorCode: "EMPLOYEE_NOT_FOUND"
+          });
+        }
+
     /* ---------- SERVICE ---------- */
-    await deleteCouponService({ couponId });
+    await deleteCouponService({ couponId , employee });
     return sendSuccess(
       res,
       null,

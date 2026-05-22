@@ -15,20 +15,14 @@ export const resolvePrice = (product, variant) => {
     return product.price ?? 0;
   }
   if (variant.priceType === "VARIANT" && variant.variantPrice == null) {
-    throw new Error("Variant price required");
+    const err = new Error("Variant price required");
+    err.statusCode = 400;
+    err.errorCode = "VARIANT_PRICE_REQUIRED";
+    throw err;
   }
   return variant.variantPrice;
 };
 
-// export const resolvePrice = (product, variant) => {
-//   if (!variant || variant.priceType === "PRODUCT") {
-//     return product.price ?? 0;
-//   }
-//   if (variant.priceType === "VARIANT" && variant.variantPrice == null) {
-//     throw new Error("Variant price required");
-//   }
-//   return variant.variantPrice;
-// };
 
 export const resolveImages = (product, variant) => {
   if (!variant || variant.imageType === "PRODUCT") {

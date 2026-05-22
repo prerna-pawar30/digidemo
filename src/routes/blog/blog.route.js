@@ -12,6 +12,7 @@ import {
 import { checkPermission } from "../../middlewares/permission.middleware.js";
 import { addBlogComment, deleteBlogComment, increaseBlogView } from "../../controllers/blog/blogView.controller.js";
 import auth from "../../middlewares/auth.middleware.js";
+import upload from "../../middlewares/multer.middleware.js";
 const router = express.Router();
 
 /* ---------- MANAGE ROUTES ---------- */
@@ -24,7 +25,9 @@ router.delete(
 );
 
 router.post(
-  "/manage/blogs",
+  "/manage/blogs",upload.fields([
+    { name: "featuredImage", maxCount: 1 },
+  ]),
   auth,
   checkPermission,
   createBlog
@@ -45,7 +48,9 @@ router.get(
 );
 
 router.patch(
-  "/manage/blogs/:blogId",
+  "/manage/blogs/:blogId",upload.fields([
+    { name: "featuredImage", maxCount: 1 },
+  ]),
   auth,
   checkPermission,
   updateBlog

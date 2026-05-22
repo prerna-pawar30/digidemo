@@ -1,11 +1,12 @@
 import { sendSuccess } from "../../../helpers/response.helper.js";
 import { handleError, sendError } from "../../../helpers/error.helper.js";
-import { registerUserService, loginUserService, verifyEmailService, forgotPasswordService, resetPasswordService, refreshAccessTokenService, updateUserProfileService, getUserDashboardService } from "../../../services/auth/user.service.js";
-import { validateRegisterBody, validateLoginBody, validateResetPasswordBody } from "./user.validator.js";
+import { registerUserService, loginUserService, verifyEmailService, forgotPasswordService, resetPasswordService, refreshAccessTokenService, updateUserProfileService, getUserDashboardService, changePasswordService } from "../../../services/auth/user.service.js";
+import { validateRegisterBody, validateLoginBody, validateResetPasswordBody, validateChangePasswordBody} from "./user.validator.js";
 import passport from "passport";
 import {getPagination} from "../../../../src/helpers/pagination.helper.js";
 import User from "../../../models/ecommarace/user.model.js";
 import { generateTokens } from "../../../helpers/token.helper.js";
+import { sendNotification } from "../../../services/notification.service.js";
 
 
 /**
@@ -112,7 +113,7 @@ export const loginUser = async (req, res) => {
       path: "/",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
-    return sendSuccess(res, { accessToken, user }, 200, "Login successful");
+    return sendSuccess(res, { accessToken, user }, 200, "Login successfull");
   } catch (error) {
     return handleError(res, error);
   }
@@ -279,16 +280,12 @@ export const googleAuth = passport.authenticate("google", {
  * Redirects user to frontend success page after successful authentication
  */
 export const googleCallback = (req, res, next) => {
-  console.log("enter in google auth api");
   passport.authenticate("google", { session: false }, async (err, user) => {
     try {
       if (err || !user) {
-        cconsole.log("eror come from here");
         return res.redirect(`${process.env.FRONTEND_URL}/login?error=google-failed`);
       }
       const { accessToken, refreshToken } = generateTokens(user);
-      console.log("accessToken --------",accessToken);
-      console.log("refershToken --------",refreshToken)
       res.cookie("refreshToken", refreshToken, {
         httpOnly: true,
         secure: true,
@@ -349,7 +346,7 @@ export const microsoftCallback = (req, res, next) => {
         console.error("Microsoft auth error:", err);
         return res.redirect(`${process.env.FRONTEND_URL}/login?error=microsoft-failed`);
       }
-      const { accessToken, refreshToken } = employeeGenerateTokens(user);
+      const { accessToken, refreshToken } = generateTokens(user);;
       res.cookie("refreshToken", refreshToken, {
         httpOnly: true,
         secure: true,
@@ -388,21 +385,24 @@ export const microsoftCallback = (req, res, next) => {
  export const getAllUsers = async (req, res) => {
    try {
     const { page, limit, skip } = getPagination(req.query);
-
     const users = await User.find()
       .select("-password")
       .skip(skip)
       .limit(limit)
       .lean();
     const totalUsers = await User.countDocuments();
+
+    const totalPages = Math.ceil(totalUsers / limit);
     return sendSuccess(
       res,
       {
         users,
         pagination: {
+          totalItems: totalUsers,
+          totalPages,
           currentPage: page,
-          totalPages: Math.ceil(totalUsers / limit),
-          totalUsers,
+          nextPage: page < totalPages ? page + 1 : null,
+          prevPage: page > 1 ? page - 1 : null,
           limit,
         },
       },
@@ -436,6 +436,7 @@ export const microsoftCallback = (req, res, next) => {
 export const deleteUserById = async (req, res) => {
   try {
     const { userId } = req.params;
+
     if (!userId) {
       return sendError(res, {
         message: "userId is required",
@@ -443,7 +444,9 @@ export const deleteUserById = async (req, res) => {
         errorCode: "USER_ID_REQUIRED",
       });
     }
+
     const deletedUser = await User.findOneAndDelete({ userId });
+
     if (!deletedUser) {
       return sendError(res, {
         message: "User not found",
@@ -451,7 +454,25 @@ export const deleteUserById = async (req, res) => {
         errorCode: "USER_NOT_FOUND",
       });
     }
-
+    /* ---------- SEND NOTIFICATION ---------- */
+    try {
+      await sendNotification({
+        permission: "customer.listing.read",
+        title: "User Account Deleted",
+        message: `${deletedUser.firstName} ${deletedUser.lastName} deleted their account`,
+        type: "USER_DELETED",
+        entityId: deletedUser._id,
+        entityModel: "User",
+        metadata: {
+          userId: deletedUser.userId,
+          fullName: `${deletedUser.firstName} ${deletedUser.lastName}`,
+          email: deletedUser.email,
+          instituteName: deletedUser.instituteName || null,
+        },
+      });
+    } catch (notifyErr) {
+      console.error("Notification failed:", notifyErr.message);
+    }
     return sendSuccess(
       res,
       { userId },
@@ -781,7 +802,7 @@ export const getCurrentUser = async (req, res) => {
 
 export const changePassword = async (req, res) => {
   try {
-    const { value, error } = changePasswordValidator(req.body);
+    const { value, error } = validateChangePasswordBody(req.body);
 
     if (error) {
       return sendError(res, {

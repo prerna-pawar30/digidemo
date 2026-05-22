@@ -42,7 +42,7 @@ import invoiceRoutes from "./src/routes/manage/invoice.route.js"
 import productReviewRoutes from "./src/routes/manage/productReview.routes.js"
 import { redis } from "./src/config/redis.config.js";
 import { onlineUsers } from "./src/sockets/socket.js";
-
+import notificationRoutes from "./src/routes/manage/notification.routes.js"
 dotenv.config();
 const app = express();
 app.use(express.json());
@@ -169,6 +169,7 @@ app.use("/api/v1/career", careerRoutes);
 app.use("/api/v1/blog",blogRoutes);
 app.use("/api/v1/invoice",invoiceRoutes)
 app.use("/api/v1/product-review", productReviewRoutes);
+app.use("/api/v1/notification", notificationRoutes)
 
 /* -------------------------------
    START SERVER

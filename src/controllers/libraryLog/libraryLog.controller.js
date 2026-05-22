@@ -359,11 +359,13 @@ export const deleteCustomerData = async (req, res) => {
  *   data: {
  *     users: [],
  *     pagination: {
- *       currentPage,
- *       totalPages,
- *       totalUsers,
- *       limit
- *     }
+*       totalItems,   
+*       totalPages,
+*       currentPage,
+*       nextPage,
+*       prevPage,
+*       limit
+*     }
  *   }
  * }
  *
@@ -415,12 +417,14 @@ export const getAllConsumers = async (req, res) => {
  *   message: "OTP records fetched successfully",
  *   data: {
  *     records: [],
- *     pagination: {
- *       currentPage,
- *       totalPages,
- *       totalRecords,
- *       limit
- *     }
+ *    pagination: {
+*       totalItems,  
+*       totalPages,
+*       currentPage,
+*       nextPage,
+*       prevPage,
+*       limit
+*     }
  *   }
  * }
  *

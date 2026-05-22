@@ -109,7 +109,8 @@ const uploadFiles = async (files = [], folder, additionalUploads = []) => {
       return uploaded.url;
     })
   );
-}; 
+};
+
 export const submitJobApplication = async (req, res) => {
   const uploadedKeys = [];
   try {
@@ -455,24 +456,10 @@ export const getManageApplications = async (req, res) => {
         source,
       },
     });
-      /* ---------- PAGINATION META ---------- */
-    const totalItems = result.totalApplications;
-    const currentPage = pagination.page;
-    const totalPages = Math.ceil(totalItems / pagination.limit);
-
-    const paginationMeta = {
-      totalItems,
-      totalPages,
-      currentPage,
-      nextPage: currentPage < totalPages ? currentPage + 1 : null,
-      prevPage: currentPage > 1 ? currentPage - 1 : null,
-      limit: pagination.limit,
-    };
-
     return sendSuccess(
       res,
       {
-        pagination: paginationMeta,
+        pagination: result.pagination,
         applications: result.applications,
       },
       200,

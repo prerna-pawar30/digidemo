@@ -2,7 +2,6 @@ import Employee from "../../models/manage/employee.model.js";
 import { sendSuccess } from "../../helpers/response.helper.js";
 import { sendError, handleError } from "../../helpers/error.helper.js";
 import { getPagination} from "../../helpers/pagination.helper.js";
-import { v6 as uuidv6 } from "uuid";
 import {
   createJobValidator,
   updateJobValidator,
@@ -16,7 +15,6 @@ import {
   getJobBySlugService,
   deleteJobService,
 } from "../../services/job.service.js";
-import { PermissionAudit } from "../../models/manage/permissionaudit.model.js";
 
 /**
  * @function createJob
@@ -188,8 +186,18 @@ export const createJob = async (req, res) => {
  *   message: "Employee not found"
  * }
  */
+
 export const updateJob = async (req, res) => {
   try {
+    const { jobId } = req.params;
+    if (!jobId) {
+      return sendError(res, {
+        message: "jobId is required",
+        statusCode: 400,
+        errorCode: "VALIDATION_ERROR",
+      });
+    }
+
     const { value, error } = updateJobValidator.validate(req.body, {
       abortEarly: false,
     });
@@ -214,7 +222,7 @@ export const updateJob = async (req, res) => {
     }
 
     const job = await updateJobService({
-      jobId: req.params.jobId,
+      jobId,
       data: value,
       employee,
     });
@@ -275,10 +283,10 @@ export const updateJob = async (req, res) => {
  *   message: "Internal server error"
  * }
  */
+
 export const getManageJobs = async (req, res) => {
   try {
     const pagination = getPagination(req.query);
-
     const {
       search,
       status = "all",
@@ -301,7 +309,10 @@ export const getManageJobs = async (req, res) => {
     });
     return sendSuccess(
       res,
-     result,
+      {
+        pagination: result.pagination,
+        jobs: result.jobs,
+      },
       200,
       "Jobs fetched successfully"
     );
@@ -375,7 +386,10 @@ export const getCareerJobs = async (req, res) => {
     });
     return sendSuccess(
       res,
-      result,
+      {
+        pagination: result.pagination,
+        jobs: result.jobs,
+      },
       200,
       "Career jobs fetched successfully"
     );
@@ -419,10 +433,19 @@ export const getCareerJobs = async (req, res) => {
  *   message: "Internal server error"
  * }
  */
+
 export const getJobById = async (req, res) => {
   try {
+    const { jobId } = req.params;
+    if (!jobId) {
+      return sendError(res, {
+        message: "jobId is required",
+        statusCode: 400,
+        errorCode: "VALIDATION_ERROR",
+      });
+    }
     const job = await getJobByIdService({
-      jobId: req.params.jobId,
+      jobId,
     });
 
     return sendSuccess(res, job, 200, "Job fetched successfully");
@@ -466,12 +489,19 @@ export const getJobById = async (req, res) => {
  *   message: "Internal server error"
  * }
  */
+
 export const getJobBySlug = async (req, res) => {
   try {
-    const job = await getJobBySlugService({
-      slug: req.params.slug,
-    });
+    const { slug } = req.params;
+    if (!slug) {
+      return sendError(res, {
+        message: "slug is required",
+        statusCode: 400,
+        errorCode: "VALIDATION_ERROR",
+      });
+    }
 
+    const job = await getJobBySlugService({ slug });
     return sendSuccess(res, job, 200, "Job fetched successfully");
   } catch (error) {
     return handleError(res, error);
@@ -515,29 +545,19 @@ export const getJobBySlug = async (req, res) => {
  *   message: "Employee not found"
  * }
  */
-/* =========================================================
-   CONTROLLER
-========================================================= */
+
 export const deleteJob = async (req, res) => {
   try {
-    /* ---------- VALIDATION ---------- */
-
     const { jobId } = req.params;
-
     if (!jobId) {
       return sendError(res, {
-        message: "JobId is required",
+        message: "jobId is required",
         statusCode: 400,
         errorCode: "VALIDATION_ERROR",
       });
     }
 
-    /* ---------- FETCH EMPLOYEE ---------- */
-
-    const employee = await Employee.findOne({
-      email: req.user.email,
-    });
-
+    const employee = await Employee.findOne({ email: req.user.email });
     if (!employee) {
       return sendError(res, {
         message: "Employee not found",
@@ -546,30 +566,10 @@ export const deleteJob = async (req, res) => {
       });
     }
 
-    /* ---------- DELETE JOB ---------- */
+    await deleteJobService({ jobId, employee });
 
-    const result = await deleteJobService({
-      jobId,
-      employee,
-      permission:
-        req.body.permission,
-    });
-
-    return sendSuccess(
-      res,
-      result,
-      200,
-      "Job deleted successfully"
-    );
-
+    return sendSuccess(res, null, 200, "Job deleted successfully");
   } catch (error) {
-
-    console.error(
-      "Delete Job Controller Error:",
-      error
-    );
-
     return handleError(res, error);
-
   }
 };
