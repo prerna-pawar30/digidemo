@@ -138,17 +138,12 @@ import { sendError, handleError } from "../helpers/error.helper.js";
  */
 
 export const checkPermission = async (req, res, next) => {
-
-
       /* =========================
          VALIDATE TOKEN USE
       ========================= */
       try{
-
       console.log("Checking permissions for user:", req.user);
-
       const userEmail = req.user?.email;
-
       if (!userEmail) {
         return sendError(res, {
           message: "Unauthorized",

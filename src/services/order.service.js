@@ -10,14 +10,14 @@ import Payment from "../models/ecommarace/paymentaudit.model.js";
 import StockAuditLog from "../models/ecommarace/stockauditlog.model.js";
 import { sendZohoMail } from "./ZohoEmail/zohoMail.service.js";
 import { orderConfirmationTemplate } from "../config/templates/orderConfirmationTemplate.js";
-import {lowStockAlertTemplate } from "../config/templates/lowStockAlertTemplate.js";
+import {adminOrderCancelledTemplate} from "../config/templates/adminOrderCancelledTemplate.js"
 import Employee from "../models/manage/employee.model.js";
 import Razorpay from "razorpay";
 import { getPagination } from "../helpers/pagination.helper.js";
 import mongoose from "mongoose";
 import {PermissionAudit} from "../models/manage/permissionaudit.model.js";
 import { sendNotification } from "./notification.service.js";
-
+import {orderStatusUpdateTemplate} from "../config/templates/orderStatusUpdateTemplate.js"
 const razorpayInstance = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
   key_secret: process.env.RAZORPAY_KEY_SECRET,

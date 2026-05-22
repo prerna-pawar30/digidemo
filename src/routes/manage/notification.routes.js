@@ -43,19 +43,18 @@ router.patch(
 );
 
 router.delete(
-  "/:notificationId",
+  "/delete/:notificationId",
   auth,
   deleteNotification
 );
 
 router.delete(
-  "/",
+  "/delete-all",
   auth,
   deleteAllNotifications
 );
 
 /* ---------- ADMIN ---------- */
-
 router.post(
   "/send",
   auth,
