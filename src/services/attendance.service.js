@@ -130,7 +130,14 @@ export const punchOutService = async (user) => {
   const nowIST = getISTNow();
   const today = getISTDateString(nowIST);
   const dayOfWeek = nowIST.getDay(); // 0 = Sunday, 6 = Saturday
-
+ /* ===== SUNDAY BLOCK ===== */
+ if (dayOfWeek === 0) {
+  throw {
+    message: "Today is Sunday. Punch-out disabled.",
+    statusCode: 403,
+    errorCode: "SUNDAY_BLOCK",
+  };
+}
   /* ===== FETCH RECORD ===== */
   const recordDoc = await EmployeeRecord.findOne({ employee: employee._id });
   if (!recordDoc) {
@@ -241,6 +248,8 @@ export const sendPunchOutRequestService = async (user, requestedPunchOut) => {
       errorCode: "FUTURE_PUNCH_OUT",
     };
   }
+  // const date = getISTDateString(punchOutTime); // ✅ IST-safe
+  // const today = getISTDateString(now);
 
   const date = punchOutTime.toISOString().split("T")[0];
   const today = getISTDateString(now);
@@ -357,29 +366,30 @@ export const sendPunchOutRequestService = async (user, requestedPunchOut) => {
 
   await empRecord.save();
   /* ===== SEND NOTIFICATION ===== */
-await sendNotification({
-  sender: employee._id,
 
-  permission: "attendance.approval.read",
-
-  title: "Punch-Out Approval Request",
-
-  message: `${employee.firstName} ${employee.lastName} requested punch-out approval for ${date}`,
-
-  type: "FORGOT_PUNCH_OUT_REQUEST",
-
-  entityId: employee._id,
-  entityModel: "Employee",
-
-  metadata: {
-    employeeId: employee.employeeId,
-    employeeName: `${employee.firstName} ${employee.lastName}`,
-    employeeEmail: employee.email,
-    requestDate: date,
-    requestedPunchOut,
-    requestType: "FORGOT_PUNCH_OUT",
-  },
-});
+  /* ===== SEND NOTIFICATION (with error guard) ===== */
+  try {
+    await sendNotification({
+      sender: employee._id,
+      permission: "attendance.approval.read",
+      title: "Punch-Out Approval Request",
+      message: `${employee.firstName} ${employee.lastName} requested punch-out approval for ${date}`,
+      type: "FORGOT_PUNCH_OUT_REQUEST",
+      entityId: employee._id,
+      entityModel: "Employee",
+      metadata: {
+        employeeId: employee.employeeId,
+        employeeName: `${employee.firstName} ${employee.lastName}`,
+        employeeEmail: employee.email,
+        requestDate: date,
+        requestedPunchOut: punchOutTime,
+        requestType: "FORGOT_PUNCH_OUT",
+      },
+    });
+  } catch (notifError) {
+    // Non-fatal: log but don't fail the request
+    console.error("Notification failed for punch-out request:", notifError);
+  }
 
   return {
     date,

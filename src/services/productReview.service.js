@@ -32,7 +32,7 @@ const setCache = async (key, data) => {
 
 const clearProductReviewCache = async () => {
   try {
-    const keys = await redisClient.keys("PRODUCT_REVIEW:*");
+    const keys = await redisClient.keys("PRODUCTID:*");
     if (keys.length > 0) {
       await redisClient.del(...keys);
       console.log("PRODUCT REVIEW CACHE CLEARED:", keys);
@@ -74,12 +74,11 @@ export const createProductReviewService = async ({ data }) => {
 
 };
 
-export const getAllProductReviewsService = async ({ page, limit, skip }) => {
+export const getAllProductReviewsService = async ({ page, limit }) => {
   const pageNum  = Math.max(Number(page)  || 1,  1);
   const limitNum = Math.max(Number(limit) || 10, 1);
-  const skipNum  = (pageNum - 1) * limitNum;
   /* ---------- CACHE KEY ---------- */
-  const cacheKey = `PRODUCT_REVIEW:ALL:${pageNum}:${limitNum}`;
+  const cacheKey = `PRODUCTID:ALL:${pageNum}:${limitNum}`;
 
   /* ---------- CACHE CHECK ---------- */
   const cached = await getCache(cacheKey);

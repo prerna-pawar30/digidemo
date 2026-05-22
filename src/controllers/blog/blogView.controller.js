@@ -13,6 +13,7 @@ import {sendSuccess} from "../../helpers/response.helper.js"
 // ➤ ADD COMMENT
 export const addBlogComment = async (req, res) => {
   try {
+    
     const result = await addBlogCommentService({
       blogId: req.params.blogId,
       data: req.body,

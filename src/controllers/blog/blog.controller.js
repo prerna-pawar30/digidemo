@@ -19,11 +19,12 @@ import { getPagination } from "../../helpers/pagination.helper.js";
 
 export const createBlog = async (req, res) => {
   try {
+    const featuredImage =  req.files?.featuredImage?.[0]
     const { value, error } = createBlogValidator.validate(req.body, {
       abortEarly: false,
       stripUnknown: true,
     });
-
+   
     if (error) {
       return sendError(res, {
         message: "Validation failed",
@@ -42,7 +43,7 @@ export const createBlog = async (req, res) => {
     }
 
     const blog = await createBlogService({
-      data: value,
+      data: value,featuredImage,
       employee,
     });
     return sendSuccess(res, blog, 201, "Blog created successfully");

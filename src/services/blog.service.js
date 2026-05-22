@@ -5,7 +5,10 @@ import BlogView from "../models/blog/blogView.model.js";
 import { sendNotification } from "./notification.service.js";
 import { PermissionAudit } from "../models/manage/permissionaudit.model.js";
 import { redis as redisClient } from "../config/redis.config.js";
-
+import {
+  uploadToS3,
+  deleteFromS3,
+} from "./awsS3.service.js";
 /* =========================================================
    CACHE CONFIG
 ========================================================= */
@@ -48,17 +51,34 @@ const clearBlogCache = async () => {
 /* =========================================================
    CREATE BLOG
 ========================================================= */
-export const createBlogService = async ({ data, employee }) => {
+export const createBlogService = async ({ data,featuredImage, employee }) => {
   const exists = await Blog.findOne({
     $or: [{ title: data.title }, { slug: data.slug }],
     isDeleted: false,
   });
+  let featuredUpload = null;
   if (exists) {
     const error = new Error("Blog already exists with same title or slug");
     error.statusCode = 409;
     error.errorCode = "BLOG_ALREADY_EXISTS";
     throw error;
   }
+  if (!featuredImage) {
+    const error = new Error(
+      "Featured image is required"
+    );
+    error.statusCode = 400;
+    error.errorCode =
+      "VALIDATION_ERROR";
+    throw error;
+  }
+    /* ---------- UPLOAD FEATURED IMAGE ---------- */
+
+    featuredUpload =
+      await uploadToS3(
+        featuredImage,
+        "blogs/featured"
+      );
 
   const slug = `${slugify(data.title, {
     lower: true,
@@ -69,6 +89,8 @@ export const createBlogService = async ({ data, employee }) => {
   const blog = await Blog.create({
     ...data,
     slug,
+    featuredImage:
+    featuredUpload.url,
     createdBy: employee?._id || null,
   });
 
