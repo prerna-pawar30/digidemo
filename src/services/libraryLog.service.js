@@ -77,6 +77,163 @@ export const sendEmailOtpService = async ({ email }) => {
 /* =========================================================
    VERIFY OTP AND CREATE CUSTOMER
 ========================================================= */
+// export const verifyOtpAndCreateCustomerService = async ({
+//   email,
+//   otp,
+//   libraryObjectId,
+//   libraryId,
+//   brand,
+//   category,
+//   firstName,
+//   lastName,
+//   mobileNumber,
+//   companyName,
+//   address,
+// }) => {
+//   const normalizedEmail = email.toLowerCase().trim();
+//   const isScanbridge = category.toLowerCase() === "scanbridge";
+//   const existingUser = await CustomerData.findOne({ email: normalizedEmail });
+//   /* ---------- SEND LIBRARY REQUEST EMAILS FOR SCANBRIDGE ---------- */
+//   if (isScanbridge) {
+//     try {
+//       await sendZohoMail(
+//         ADMIN_EMAILS.join(","),
+//         `New Library Request for ${brand} - ${category}`,
+//         adminLibraryRequestTemplate(normalizedEmail, brand, category)
+//       );
+//       await sendZohoMail(
+//         normalizedEmail,
+//         "Your Library Request Has Been Received",
+//         userLibraryRequestTemplate(brand, category)
+//       );
+//     } catch (err) {
+//       console.error("Scanbridge email failed:", err.message);
+//     }
+//   }
+
+//   /* ---------- BUILD LOG ENTRY (no libraryObjectId/libraryId for scanbridge) ---------- */
+//   const libraryLogEntry = {
+//     ...(isScanbridge ? {} : { libraryObjectId, libraryId }),
+//     brandName: brand,
+//     category,
+//     date: new Date(),
+//   };
+//   console.log("Library Log Entry:", libraryLogEntry);
+//   /* ---------- IF CUSTOMER ALREADY VERIFIED ---------- */
+//   if (existingUser && existingUser.isEmailVerified) {
+//     await CustomerData.updateOne(
+//       { _id: existingUser._id },
+//       { $push: { logLibrary: libraryLogEntry } }
+//     );
+
+//     await clearLibraryCache();
+
+//     try {
+//       await sendNotification({
+//         sender: null,
+//         permission: "library.listing.read",
+//         title: "Library Downloaded",
+//         message: `${normalizedEmail} downloaded "${brand}" library (${category})`,
+//         type: "LIBRARY_DOWNLOADED",
+//         entityId: existingUser._id,
+//         entityModel: "CustomerData",
+//         metadata: {
+//           customerId: existingUser._id,
+//           email: normalizedEmail,
+//           ...(isScanbridge ? {} : { libraryId }),
+//           brand,
+//           category,
+//         },
+//       });
+//     } catch (err) {
+//       console.error("Notification failed on library download:", err.message);
+//     }
+
+//     return {
+//       userId: existingUser._id,
+//       email: existingUser.email,
+//       isVerified: true,
+//       message: "Email already verified, library log updated",
+//     };
+//   }
+
+//   /* ---------- VALIDATE OTP ---------- */
+//   if (!otp) {
+//     const error = new Error("OTP is required");
+//     error.statusCode = 400;
+//     error.errorCode = "OTP_REQUIRED";
+//     throw error;
+//   }
+
+//   const otpRecord = await EmailVerifyDummy.findOne({ email: normalizedEmail });
+
+//   if (!otpRecord) {
+//     const error = new Error("OTP not found. Please request again.");
+//     error.statusCode = 400;
+//     error.errorCode = "OTP_NOT_FOUND";
+//     throw error;
+//   }
+
+//   if (otpRecord.otp !== otp) {
+//     const error = new Error("Invalid OTP");
+//     error.statusCode = 400;
+//     error.errorCode = "INVALID_OTP";
+//     throw error;
+//   }
+
+//   if (otpRecord.otpExpiry < new Date()) {
+//     await EmailVerifyDummy.deleteOne({ email: normalizedEmail });
+//     const error = new Error("OTP expired. Please request again.");
+//     error.statusCode = 400;
+//     error.errorCode = "OTP_EXPIRED";
+//     throw error;
+//   }
+
+//   /* ---------- CREATE CUSTOMER ---------- */
+//   const customer = await CustomerData.create({
+//     customerId: uuidv6(),
+//     firstName,
+//     lastName,
+//     email: normalizedEmail,
+//     mobileNumber,
+//     companyName,
+//     address,
+//     isEmailVerified: true,
+//     logLibrary: [libraryLogEntry],
+//   });
+
+//   await EmailVerifyDummy.deleteOne({ email: normalizedEmail });
+//   await clearLibraryCache();
+
+//   try {
+//     await sendNotification({
+//       sender: null,
+//       permission: "library.listing.read",
+//       title: "Library Downloaded",
+//       message: `${normalizedEmail} downloaded "${brand}" library (${category})`,
+//       type: "LIBRARY_DOWNLOADED",
+//       entityId: customer._id,
+//       entityModel: "CustomerData",
+//       metadata: {
+//         customerId: customer._id,
+//         email: normalizedEmail,
+//         ...(isScanbridge ? {} : { libraryId }),
+//         brand,
+//         category,
+//       },
+//     });
+//   } catch (err) {
+//     console.error("Notification failed on library download:", err.message);
+//   }
+
+//   return {
+//     userId: customer._id,
+//     email: customer.email,
+//     isVerified: true,
+//     message: "OTP verified and customer created successfully",
+//   };
+// };
+
 export const verifyOtpAndCreateCustomerService = async ({
   email,
   otp,
@@ -91,39 +248,89 @@ export const verifyOtpAndCreateCustomerService = async ({
   address,
 }) => {
   const normalizedEmail = email.toLowerCase().trim();
-  const isScanbridge = category.toLowerCase() === "scanbridge";
-  const existingUser = await CustomerData.findOne({ email: normalizedEmail });
-  /* ---------- SEND LIBRARY REQUEST EMAILS FOR SCANBRIDGE ---------- */
+
+  const isScanbridge =
+    category?.toLowerCase() === "scanbridge";
+
+  /* ---------- VALIDATE REQUIRED IDS FOR NON-SCANBRIDGE ---------- */
+  if (!isScanbridge) {
+    if (!libraryId || !libraryObjectId) {
+      const error = new Error(
+        "libraryId and libraryObjectId are required"
+      );
+      error.statusCode = 400;
+      error.errorCode = "LIBRARY_DETAILS_REQUIRED";
+      throw error;
+    }
+  }
+
+  const existingUser =
+    await CustomerData.findOne({
+      email: normalizedEmail,
+    });
+
+  /* ---------- SEND EMAILS FOR SCANBRIDGE ---------- */
   if (isScanbridge) {
     try {
       await sendZohoMail(
         ADMIN_EMAILS.join(","),
         `New Library Request for ${brand} - ${category}`,
-        adminLibraryRequestTemplate(normalizedEmail, brand, category)
+        adminLibraryRequestTemplate(
+          normalizedEmail,
+          brand,
+          category
+        )
       );
+
       await sendZohoMail(
         normalizedEmail,
         "Your Library Request Has Been Received",
-        userLibraryRequestTemplate(brand, category)
+        userLibraryRequestTemplate(
+          brand,
+          category
+        )
       );
     } catch (err) {
-      console.error("Scanbridge email failed:", err.message);
+      console.error(
+        "Scanbridge email failed:",
+        err.message
+      );
     }
   }
 
-  /* ---------- BUILD LOG ENTRY (no libraryObjectId/libraryId for scanbridge) ---------- */
+  /* ---------- BUILD LIBRARY LOG ENTRY ---------- */
   const libraryLogEntry = {
-    ...(isScanbridge ? {} : { libraryObjectId, libraryId }),
     brandName: brand,
     category,
     date: new Date(),
   };
 
-  /* ---------- IF CUSTOMER ALREADY VERIFIED ---------- */
-  if (existingUser && existingUser.isEmailVerified) {
+  /* ---------- ADD IDS ONLY FOR NON-SCANBRIDGE ---------- */
+  if (!isScanbridge) {
+    libraryLogEntry.libraryObjectId =
+      libraryObjectId;
+
+    libraryLogEntry.libraryId =
+      libraryId;
+  }
+
+  console.log(
+    "Library Log Entry:",
+    libraryLogEntry
+  );
+
+  /* ---------- EXISTING VERIFIED CUSTOMER ---------- */
+  if (
+    existingUser &&
+    existingUser.isEmailVerified
+  ) {
     await CustomerData.updateOne(
       { _id: existingUser._id },
-      { $push: { logLibrary: libraryLogEntry } }
+      {
+        $push: {
+          logLibrary: libraryLogEntry,
+        },
+      }
     );
 
     await clearLibraryCache();
@@ -131,7 +338,8 @@ export const verifyOtpAndCreateCustomerService = async ({
     try {
       await sendNotification({
         sender: null,
-        permission: "library.listing.read",
+        permission:
+          "library.listing.read",
         title: "Library Downloaded",
         message: `${normalizedEmail} downloaded "${brand}" library (${category})`,
         type: "LIBRARY_DOWNLOADED",
@@ -140,75 +348,113 @@ export const verifyOtpAndCreateCustomerService = async ({
         metadata: {
           customerId: existingUser._id,
           email: normalizedEmail,
-          ...(isScanbridge ? {} : { libraryId }),
           brand,
           category,
+          ...(isScanbridge
+            ? {}
+            : {
+                libraryId,
+                libraryObjectId,
+              }),
         },
       });
     } catch (err) {
-      console.error("Notification failed on library download:", err.message);
+      console.error(
+        "Notification failed on library download:",
+        err.message
+      );
     }
 
     return {
       userId: existingUser._id,
       email: existingUser.email,
       isVerified: true,
-      message: "Email already verified, library log updated",
+      message:
+        "Email already verified, library log updated",
     };
   }
 
   /* ---------- VALIDATE OTP ---------- */
   if (!otp) {
-    const error = new Error("OTP is required");
+    const error = new Error(
+      "OTP is required"
+    );
+
     error.statusCode = 400;
     error.errorCode = "OTP_REQUIRED";
+
     throw error;
   }
 
-  const otpRecord = await EmailVerifyDummy.findOne({ email: normalizedEmail });
+  const otpRecord =
+    await EmailVerifyDummy.findOne({
+      email: normalizedEmail,
+    });
 
   if (!otpRecord) {
-    const error = new Error("OTP not found. Please request again.");
+    const error = new Error(
+      "OTP not found. Please request again."
+    );
+
     error.statusCode = 400;
     error.errorCode = "OTP_NOT_FOUND";
+
     throw error;
   }
 
   if (otpRecord.otp !== otp) {
-    const error = new Error("Invalid OTP");
+    const error = new Error(
+      "Invalid OTP"
+    );
+
     error.statusCode = 400;
     error.errorCode = "INVALID_OTP";
+
     throw error;
   }
 
-  if (otpRecord.otpExpiry < new Date()) {
-    await EmailVerifyDummy.deleteOne({ email: normalizedEmail });
-    const error = new Error("OTP expired. Please request again.");
+  if (
+    otpRecord.otpExpiry < new Date()
+  ) {
+    await EmailVerifyDummy.deleteOne({
+      email: normalizedEmail,
+    });
+
+    const error = new Error(
+      "OTP expired. Please request again."
+    );
+
     error.statusCode = 400;
     error.errorCode = "OTP_EXPIRED";
+
     throw error;
   }
 
   /* ---------- CREATE CUSTOMER ---------- */
-  const customer = await CustomerData.create({
-    customerId: uuidv6(),
-    firstName,
-    lastName,
+  const customer =
+    await CustomerData.create({
+      customerId: uuidv6(),
+      firstName,
+      lastName,
+      email: normalizedEmail,
+      mobileNumber,
+      companyName,
+      address,
+      isEmailVerified: true,
+      logLibrary: [libraryLogEntry],
+    });
+
+  await EmailVerifyDummy.deleteOne({
     email: normalizedEmail,
-    mobileNumber,
-    companyName,
-    address,
-    isEmailVerified: true,
-    logLibrary: [libraryLogEntry],
   });
 
-  await EmailVerifyDummy.deleteOne({ email: normalizedEmail });
   await clearLibraryCache();
 
   try {
     await sendNotification({
       sender: null,
-      permission: "library.listing.read",
+      permission:
+        "library.listing.read",
       title: "Library Downloaded",
       message: `${normalizedEmail} downloaded "${brand}" library (${category})`,
       type: "LIBRARY_DOWNLOADED",
@@ -217,20 +463,29 @@ export const verifyOtpAndCreateCustomerService = async ({
       metadata: {
         customerId: customer._id,
         email: normalizedEmail,
-        ...(isScanbridge ? {} : { libraryId }),
         brand,
         category,
+        ...(isScanbridge
+          ? {}
+          : {
+              libraryId,
+              libraryObjectId,
+            }),
       },
     });
   } catch (err) {
-    console.error("Notification failed on library download:", err.message);
+    console.error(
+      "Notification failed on library download:",
+      err.message
+    );
   }
 
   return {
     userId: customer._id,
     email: customer.email,
     isVerified: true,
-    message: "OTP verified and customer created successfully",
+    message:
+      "OTP verified and customer created successfully",
   };
 };
 
