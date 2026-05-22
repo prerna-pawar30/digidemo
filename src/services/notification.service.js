@@ -3,6 +3,133 @@ import { getIO } from "../sockets/socket.js";
 import { onlineUsers } from "../sockets/socket.js";
 import Notification from "../models/manage/notification.model.js";
 
+export const getNotificationsService =
+  async ({
+    employeeId,
+    page = 1,
+    limit = 10,
+  }) => {
+    const skip = (page - 1) * limit;
+
+    const notifications =
+      await Notification.find({
+        receiver: employeeId,
+      })
+        .populate("sender", "name email")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit);
+
+    const total =
+      await Notification.countDocuments({
+        receiver: employeeId,
+      });
+
+    return {
+      notifications,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total,
+        pages: Math.ceil(total / limit),
+      },
+    };
+  };
+
+  
+export const getUnreadNotificationCountService =
+  async ({ employeeId }) => {
+    return Notification.countDocuments({
+      receiver: employeeId,
+      isRead: false,
+    });
+  };
+
+export const markNotificationAsReadService =
+  async ({
+    notificationId,
+    employeeId,
+  }) => {
+    const notification =
+      await Notification.findOneAndUpdate(
+        {
+          _id: notificationId,
+          receiver: employeeId,
+        },
+        {
+          isRead: true,
+        },
+        {
+          new: true,
+        }
+      );
+
+    if (!notification) {
+      const error = new Error(
+        "Notification not found"
+      );
+
+      error.statusCode = 404;
+
+      throw error;
+    }
+
+    return notification;
+  };
+
+export const markAllNotificationsAsReadService =
+  async ({ employeeId }) => {
+    await Notification.updateMany(
+      {
+        receiver: employeeId,
+        isRead: false,
+      },
+      {
+        isRead: true,
+      }
+    );
+
+    return {
+      success: true,
+    };
+  };
+
+export const deleteNotificationService =
+  async ({
+    notificationId,
+    employeeId,
+  }) => {
+    const notification =
+      await Notification.findOneAndDelete({
+        _id: notificationId,
+        receiver: employeeId,
+      });
+
+    if (!notification) {
+      const error = new Error(
+        "Notification not found"
+      );
+
+      error.statusCode = 404;
+
+      throw error;
+    }
+
+    return {
+      success: true,
+    };
+  };
+
+export const deleteAllNotificationsService =
+  async ({ employeeId }) => {
+    await Notification.deleteMany({
+      receiver: employeeId,
+    });
+
+    return {
+      success: true,
+    };
+  };
 
 
 export const sendNotification = async ({

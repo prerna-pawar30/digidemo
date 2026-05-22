@@ -67,7 +67,6 @@ export const createBrandService = async ({
       err.errorCode = "VALIDATION_ERROR";
       throw err;
     }
-
     const existingBrand = await Brand.findOne({ brandName });
     if (existingBrand) {
       const err = new Error("Brand already exists");
@@ -75,7 +74,6 @@ export const createBrandService = async ({
       err.errorCode = "BRAND_ALREADY_EXISTS";
       throw err;
     }
-
     /* ---------- UPLOAD LOGO ---------- */
     logoUpload = await uploadToS3(logoFile, "brands");
 
@@ -119,7 +117,6 @@ export const createBrandService = async ({
         });
       }
     }
-
     /* ---------- SAVE BRAND ---------- */
     const brand = await Brand.create({
       brandId: uuidv6(),
@@ -127,10 +124,8 @@ export const createBrandService = async ({
       logoUrl: logoUpload.url,
       files: fileUploads,
     });
-
     /* ---------- CLEAR CACHE ---------- */
     await clearBrandCache();
-
     /* ---------- AUDIT ---------- */
     try {
       await PermissionAudit.create({
@@ -145,7 +140,6 @@ export const createBrandService = async ({
     } catch (err) {
       console.error("Audit log failed on create brand:", err.message);
     }
-
     /* ---------- NOTIFICATION ---------- */
     try {
       await sendNotification({
@@ -166,7 +160,6 @@ export const createBrandService = async ({
     } catch (err) {
       console.error("Notification failed on create brand:", err.message);
     }
-
     return brand;
   } catch (error) {
     /* ---------- ROLLBACK ---------- */
