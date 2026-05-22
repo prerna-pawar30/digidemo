@@ -47,8 +47,6 @@ export const createEmployeeService = async (data, adminEmail) => {
   if (role === 0 || role === 1) {
     const allPermissions = await Permission.find({}, "name").lean();
     assignedPermissions = allPermissions.map((p) => p.name); // all 44
-  } else if (permission) {
-    assignedPermissions = [permission];
   }
 
   /* Create employee */
