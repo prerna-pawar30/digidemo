@@ -114,7 +114,6 @@ export const createBannerService = async ({
       console.error("Audit log failed on create banner:", err.message);
     }
 
-    /* ---------- NOTIFICATION ---------- */
     try {
       await sendNotification({
         sender: employee._id,
