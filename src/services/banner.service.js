@@ -118,7 +118,7 @@ export const createBannerService = async ({
     try {
       await sendNotification({
         sender: employee._id,
-        permission: "banner.listing.read",
+        permission: "marketing.banner.create",
         title: "New Banner Created",
         message: `Banner created successfully at display order ${displayOrder}`,
         type: "BANNER_CREATED",
@@ -350,7 +350,7 @@ export const updateBannerService = async ({
     try {
       await sendNotification({
         sender: employee._id,
-        permission: "banner.listing.read",
+        permission: "marketing.banner.update",
         title: "Banner Updated",
         message: `Banner ${banner.bannerId} updated successfully`,
         type: "BANNER_UPDATED",
@@ -449,7 +449,7 @@ export const updateBannerDisplayOrderService = async ({
     try {
       await sendNotification({
         sender: employee._id,
-        permission: "banner.listing.read",
+        permission: "marketing.banner.update",
         title: "Banner Display Order Updated",
         message: `Banner order changed to ${banner.displayOrder}`,
         type: "BANNER_DISPLAY_ORDER_UPDATED",
@@ -524,7 +524,7 @@ export const deleteBannerService = async ({ bannerId, employee, permission }) =>
     try {
       await sendNotification({
         sender: employee._id,
-        permission: "banner.listing.read",
+        permission: "marketing.banner.delete",
         title: "Banner Deleted",
         message: `Banner ${banner.bannerId} deleted successfully`,
         type: "BANNER_DELETED",

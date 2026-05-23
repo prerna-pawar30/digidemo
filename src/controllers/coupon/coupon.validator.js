@@ -18,8 +18,8 @@ const buyXGetYSchema = Joi.object({
 /* ============================
    CREATE VALIDATION
 ============================ */
-export const createCouponValidation = Joi.object({
-  permission:Joi.string().min(3).required(),
+export const createCouponValidation = Joi.object({  
+  permission:Joi.string().required(),
   title: Joi.string().min(3).required(),
   code: Joi.string().min(3).required(),
 

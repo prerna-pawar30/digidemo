@@ -173,9 +173,10 @@ export const addProductService = async ({ body, files, user }) => {
     });
 
     /* ---------- SEND NOTIFICATION ---------- */
+    try{
     await sendNotification({
       sender: employee._id,
-      permission: "product.listing.read",
+      permission: "product.listing.create",
       title: "New Product Added",
       message: `A new product "${product.name}" has been added`,
       type: "PRODUCT_CREATED",
@@ -191,6 +192,9 @@ export const addProductService = async ({ body, files, user }) => {
         createdBy: employee.email,
       },
     });
+  } catch (err) {
+    console.error("Notification failed on create product:", err.message);
+  }
     return product;
   } catch (error) {
     /* ---------- ROLLBACK UPLOADED FILES ---------- */
@@ -386,6 +390,29 @@ export const updateProductService = async ({
       permission: body.permission || "update_product",
       actionType: "Update",
     });
+        /* ---------- SEND NOTIFICATION ---------- */
+    try{
+    await sendNotification({
+      sender: employee._id,
+      permission: "product.listing.update",
+      title: "Product Updated",
+      message: `Product "${product.name}" has been updated`,
+      type: "PRODUCT_UPDATED",
+      entityId: product._id,
+      entityModel: "Product",
+      metadata: {
+        productId: product.productId,
+        name: product.name,
+        slug: product.slug || null,
+        brand: product.brand || null,
+        category: product.category || null,
+        stockType: product.stockType,
+        createdBy: employee.email,
+      },
+    });
+  } catch (err) {
+    console.error("Notification failed on create product:", err.message);
+  }
 
     return product;
 
@@ -537,6 +564,29 @@ export const deleteProductService = async ({
     permission: permission || "delete_product",
     actionType: "Delete",
   });
+      /* ---------- SEND NOTIFICATION ---------- */
+    try{
+    await sendNotification({
+      sender: employee._id,
+      permission: "product.listing.delete",
+      title: "Product Deleted",
+      message: `Product "${product.name}" has been deleted`,
+      type: "PRODUCT_DELETED",
+      entityId: product._id,
+      entityModel: "Product",
+      metadata: {
+        productId: product.productId,
+        name: product.name,
+        slug: product.slug || null,
+        brand: product.brand || null,
+        category: product.category || null,
+        stockType: product.stockType,
+        createdBy: employee.email,
+      },
+    });
+  } catch (err) {
+    console.error("Notification failed on create product:", err.message);
+  }
 
   return product;
 };
@@ -633,39 +683,29 @@ export const updateProductStockService = async ({
     permission: permission || "update_stock",
     actionType: "Update",
   });
-
-  /* ---------------- NOTIFICATION ---------------- */
-await sendNotification({
-  sender: employee._id,
-  permission: "stock.listing.update",
-  title: "Product Stock Updated",
-  message: `Stock updated successfully for ${product.name}`,
-  type: "PRODUCT_STOCK_UPDATED",
-  entityId: product._id,
-  entityModel: "Product",
-  metadata: {
-    productId: product.productId,
-    productName: product.name,
-    stockType: product.stockType,
-
-    productStock:
-      product.stockType === "PRODUCT"
-        ? product.productStock
-        : null,
-
-    variantStocks:
-      product.stockType === "VARIANT"
-        ? product.variants.map((v) => ({
-            variantId: v.variantId,
-            variantName: v.name,
-            stock: v.variantStock,
-          }))
-        : [],
-
-    updatedBy: employee.email,
-  },
-});
-
+      /* ---------- SEND NOTIFICATION ---------- */
+    try{
+    await sendNotification({
+      sender: employee._id,
+      permission: "inventory.stock.update",
+      title: "Product Stock Updated",
+      message: `Stock updated successfully for ${product.name}`,
+      type: "PRODUCT_STOCK_UPDATED",
+      entityId: product._id,
+      entityModel: "Product",
+      metadata: {
+        productId: product.productId,
+        name: product.name,
+        slug: product.slug || null,
+        brand: product.brand || null,
+        category: product.category || null,
+        stockType: product.stockType,
+        createdBy: employee.email,
+      },
+    });
+  } catch (err) {
+    console.error("Notification failed on create product:", err.message);
+  }
   return product;
 };
 
@@ -748,6 +788,28 @@ export const duplicateProductService = async ({
     permission: permission || "duplicate_product",
     actionType: "Create",
   });
-
+      /* ---------- SEND NOTIFICATION ---------- */
+    try{
+    await sendNotification({
+      sender: employee._id,
+      permission: "product.listing.create",
+      title: "New Product Added",
+      message: `A new product "${product.name}" has been added`,
+      type: "PRODUCT_CREATED",
+      entityId: product._id,
+      entityModel: "Product",
+      metadata: {
+        productId: product.productId,
+        name: product.name,
+        slug: product.slug || null,
+        brand: product.brand || null,
+        category: product.category || null,
+        stockType: product.stockType,
+        createdBy: employee.email,
+      },
+    });
+  } catch (err) {
+    console.error("Notification failed on create product:", err.message);
+  }
   return newProduct;
 };

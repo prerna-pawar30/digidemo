@@ -371,7 +371,7 @@ export const sendPunchOutRequestService = async (user, requestedPunchOut) => {
   try {
     await sendNotification({
       sender: employee._id,
-      permission: "attendance.approval.read",
+      permission: "attendance.log.update",
       title: "Punch-Out Approval Request",
       message: `${employee.firstName} ${employee.lastName} requested punch-out approval for ${date}`,
       type: "FORGOT_PUNCH_OUT_REQUEST",
@@ -554,7 +554,7 @@ export const requestLeaveService = async (user, data) => {
 await sendNotification({
   sender: employee._id,
 
-  permission: "leave.approval.read",
+  permission: "attendance.log.update",
 
   title: "New Leave Request",
 
@@ -802,6 +802,22 @@ export const updatePunchOutRequestStatusService = async (
   approval.actionAt = new Date();
   await approval.save();
 
+
+       /* ---------- NOTIFICATION ---------- */
+          try {
+            await sendNotification({
+              sender: employee?._id,
+              permission: "attendance.log.update",
+              title: "Attendance Log Updated",
+              message: `Attendance log updated for ${employee?.name || "Employee"}`,
+              type: "ATTENDANCE_LOG_UPDATED",
+              entityId: employee?._id,
+              entityModel: "Employee",
+            });
+          } catch (err) {
+            console.error("Notification failed on Attendance log update:", err.message);
+          }
+
   return {
     approvalId: approval.approvalId,
     employee,
@@ -921,6 +937,20 @@ export const updateLeaveRequestStatusService = async (
 
   await record.save();
   await approval.save();
+       /* ---------- NOTIFICATION ---------- */
+          try {
+            await sendNotification({
+              sender: employee?._id,
+              permission: "attendance.log.update",
+              title: "Attendance Log Updated",
+              message: `Attendance log updated for ${employee?.name || "Employee"}`,
+              type: "ATTENDANCE_LOG_UPDATED",
+              entityId: employee?._id,
+              entityModel: "Employee",
+            });
+          } catch (err) {
+            console.error("Notification failed on attendance log update:", err.message);
+          }
 
   return {
     approvalId: approval.approvalId,
@@ -1000,6 +1030,20 @@ export const createHolidayService = async (date, title) => {
       day.adminAdjusted = true;
       updated++;
     }
+         /* ---------- NOTIFICATION ---------- */
+            try {
+              await sendNotification({
+                sender: employee?._id,
+                permission: "attendance.log.update",
+                title: "Create Holiday",
+                message: `Create holiday on ${dateStr}`,
+                type: "ATTENDANCE_LOG_UPDATED",
+                entityId: employee?._id,
+                entityModel: "Employee",
+              });
+            } catch (err) {
+              console.error("Notification failed on create holiday:", err.message);
+            }
 
     await record.save();
   }
@@ -1099,6 +1143,24 @@ export const getMyPunchOutRequestsService = async (email) => {
     requestType: "FORGOT_PUNCH_OUT",
   })
     .sort({ createdAt: -1 });
+         /* ---------- NOTIFICATION ---------- */
+            try {
+              await sendNotification({
+                sender: employee?._id,
+                permission: "attendance.log.update",
+                title: "Forget to Punch-Out Request",
+                message: `Forget to Punch-Out requested for ${employee?.name || "Employee"}`,
+                type: "FORGOT_PUNCH_OUT_REQUESTED",
+                entityId: employee?._id,
+                entityModel: "Employee",
+                metadata: {
+                  orderId: order.orderId,
+                  createdBy: employee?.email || null,
+                },
+              });
+            } catch (err) {
+              console.error("Notification failed for forgot punch-out request:", err.message);
+            }
 
   // Format response
   return requests.map(r => ({

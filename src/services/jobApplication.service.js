@@ -58,7 +58,7 @@ export const submitJobApplicationService = async ({
   try {
     await sendNotification({
       sender: null,
-      permission: career.application.read,
+      permission: "hr.career.read",
       title: "New Job Application Received",
       message: `${data.firstName} ${data.lastName} applied for "${job.title}"`,
       type: "APPLICATION_SUBMITTED",

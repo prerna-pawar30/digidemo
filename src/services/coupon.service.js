@@ -52,10 +52,8 @@ export const createCouponService = async ({ data, employee, permission }) => {
     ...data,
     couponId: uuidv6(),
   });
-
   /* ---------- CLEAR CACHE ---------- */
   await clearCouponCache();
-
   /* ---------- AUDIT ---------- */
   try {
     await PermissionAudit.create({
@@ -75,7 +73,7 @@ export const createCouponService = async ({ data, employee, permission }) => {
   try {
     await sendNotification({
       sender: employee?._id,
-      permission: "coupan.listing.read",
+      permission: "marketing.coupon.create",
       title: "New Coupon Created",
       message: `${coupon.code} coupon has been created successfully`,
       type: "COUPON_CREATED",
@@ -134,10 +132,10 @@ export const updateCouponService = async ({ couponId, data,employee }) => {
   try {
     await sendNotification({
       sender: employee?._id,
-      permission: "coupan.listing.read",
-      title: "New Coupon Created",
-      message: `${coupon.code} coupon has been update successfully`,
-      type: "COUPON_CREATED",
+      permission: "marketing.coupon.update",
+      title: "Coupon Updated",
+      message: `${coupon.code} coupon has been updated successfully`,
+      type: "COUPON_UPDATED",
       entityId: coupon._id,
       entityModel: "Coupon",
       metadata: {
@@ -264,16 +262,16 @@ export const deleteCouponService = async ({ couponId, employee }) => {
       actionType: "Delete",
     });
   } catch (err) {
-    console.error("Audit log failed on create coupon:", err.message);
+    console.error("Audit log failed on delete coupon:", err.message);
   }
   /* ---------- NOTIFICATION ---------- */
   try {
     await sendNotification({
       sender: employee?._id,
-      permission: "coupan.listing.read",
-      title: "New Coupon Created",
-      message: `${coupon.code} coupon has been delete successfully`,
-      type: "COUPON_CREATED",
+      permission: "marketing.coupon.delete",
+      title: "Coupon Deleted",
+      message: `${coupon.code} coupon has been deleted successfully`,
+      type: "COUPON_DELETED",
       entityId: coupon._id,
       entityModel: "Coupon",
       metadata: {
