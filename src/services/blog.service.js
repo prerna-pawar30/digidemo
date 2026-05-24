@@ -246,6 +246,7 @@ export const getBlogBySlugService = async ({ slug }) => {
    UPDATE BLOG
 ========================================================= */
 export const updateBlogService = async ({ blogId, data,featuredImage, employee }) => {
+  let featuredUpload = null;
   try{
   const blog = await Blog.findOne({ blogId, isDeleted: false });
   if (!blog) {
@@ -275,7 +276,7 @@ export const updateBlogService = async ({ blogId, data,featuredImage, employee }
     if (blog.featuredImage) {
       await deleteFromS3(blog.featuredImage);
     }
-    const uploaded = await uploadToS3(
+    featuredUpload = await uploadToS3(
       featuredImage,
       "blogs/featured"
     );
@@ -339,9 +340,9 @@ export const updateBlogService = async ({ blogId, data,featuredImage, employee }
   return blog;
 }catch(error){
    /* ---------- ROLLBACK ---------- */
-   if (uploaded?.url) {
+   if (featuredUpload?.url) {
     await deleteFromS3(
-      uploaded.url
+      featuredUpload.url
     );
   }
   throw error;
