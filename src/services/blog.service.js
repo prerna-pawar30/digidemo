@@ -289,7 +289,7 @@ export const updateBlogService = async ({ blogId, data,featuredImage, employee }
       featuredImage,
       "blogs/featured"
     );
-    blog.featuredImage = uploaded.url;
+    blog.featuredImage = featuredUpload.url;
   }
 
   const oldData = {
