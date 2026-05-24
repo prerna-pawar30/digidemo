@@ -248,15 +248,6 @@ export const getBlogBySlugService = async ({ slug }) => {
 export const updateBlogService = async ({ blogId, data,featuredImage, employee }) => {
   let featuredUpload = null;
   try{
-  if (!featuredImage) {
-    const error = new Error(
-      "Featured image is required"
-    );
-    error.statusCode = 400;
-    error.errorCode =
-      "VALIDATION_ERROR";
-    throw error;
-  }
   const blog = await Blog.findOne({ blogId, isDeleted: false });
   if (!blog) {
     const error = new Error("Blog not found");
