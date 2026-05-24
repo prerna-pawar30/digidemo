@@ -348,9 +348,9 @@ export const updateBlogService = async ({ blogId, data,featuredImage, employee }
   return blog;
 }catch(error){
    /* ---------- ROLLBACK ---------- */
-   if (featuredUpload?.url) {
+   if (featuredImage?.url) {
     await deleteFromS3(
-      featuredUpload.url
+      featuredImage.url
     );
   }
   throw error;
