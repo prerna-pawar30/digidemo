@@ -6,7 +6,6 @@ export const startCouponExpiryCron = () => {
     try {
       console.log("Running Coupon Expiry Cron...");
       const now = new Date();
-
       const result = await Coupon.updateMany(
         {
           endDate: { $lt: now },
