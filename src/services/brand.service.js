@@ -280,7 +280,6 @@ export const updateBrandService = async ({
     } catch (err) {
       console.error("Audit log failed on update brand:", err.message);
     }
-
     /* ---------- NOTIFICATION ---------- */
     try {
       await sendNotification({
@@ -301,7 +300,6 @@ export const updateBrandService = async ({
     } catch (err) {
       console.error("Notification failed on update brand:", err.message);
     }
-
     return brand;
   } catch (error) {
     /* ---------- ROLLBACK ---------- */
