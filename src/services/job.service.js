@@ -54,7 +54,6 @@ export const createJobService = async ({ data, employee }) => {
   while (await Job.findOne({ slug })) {
     slug = `${baseSlug}-${counter++}`;
   }
-
   const job = await Job.create({
     ...data,
     jobId: uuidv6(),
@@ -72,10 +71,8 @@ export const createJobService = async ({ data, employee }) => {
       email: employee?.email || null,
     },
   });
-
   /* ---------- CLEAR CACHE ---------- */
   await clearJobCache();
-
   /* ---------- AUDIT ---------- */
   try {
     await PermissionAudit.create({
@@ -88,10 +85,10 @@ export const createJobService = async ({ data, employee }) => {
       permission: "hr.career.create",
       actionType: "Create",
     });
+    
   } catch (err) {
     console.error("Audit log failed on create job:", err.message);
   }
-
   /* ---------- NOTIFICATION ---------- */
   try {
     await sendNotification({
@@ -112,7 +109,6 @@ export const createJobService = async ({ data, employee }) => {
   } catch (err) {
     console.error("Notification failed on create job:", err.message);
   }
-
   return job;
 };
 
