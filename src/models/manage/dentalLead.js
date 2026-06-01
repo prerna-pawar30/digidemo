@@ -98,7 +98,7 @@ dentalLeadSchema.index(
 );
 
 /* ── Pre-save: auto-compute nextFollowUpDate ─────────────────────────────── */
-dentalLeadSchema.pre("save", function (next) {
+dentalLeadSchema.pre("save", function () {
   const now = new Date();
   const upcoming = [...this.preSaleFollowups, ...this.postSaleFollowups]
     .map((f) => f?.nextCallDate)
@@ -106,7 +106,6 @@ dentalLeadSchema.pre("save", function (next) {
     .sort((a, b) => new Date(a) - new Date(b));
 
   this.nextFollowUpDate = upcoming.length ? upcoming[0] : null;
-  next();
 });
 
 export default mongoose.model("DentalLead", dentalLeadSchema);
