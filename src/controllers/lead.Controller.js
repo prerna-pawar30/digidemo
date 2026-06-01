@@ -1,3 +1,4 @@
+import Employee from "../models/manage/employee.model.js";
 import * as svc from "../services/lead.service.js";
 
 const ok  = (res, data, status = 200) => res.status(status).json({ success: true, ...data });
@@ -16,8 +17,7 @@ export const getAllLeads = async (req, res) => {
 
 export const createLead = async (req, res) => {
   try { 
-    const email = req.user?.email;
-    const data = await svc.createLead(req.body,email);
+    const data = await svc.createLead(req.body);
     ok(res, { data }, 201); 
   } catch (e) { 
     err(res, e.message, 400); 
@@ -66,14 +66,8 @@ export const moveToFollowup = async (req, res) => {
 // POST /leads/:id/followup/:stageType  (where stageType is 'pre-sale' or 'post-sale')
 export const logFollowUp = async (req, res) => {
   try {
-    const emp = req.employee;
-    const agent = `${emp.firstName || ""} ${emp.lastName || ""}`.trim() || emp.email;
-    
-    const data = await svc.logFollowUp(req.params.id, req.params.stageType, {
-      ...req.body,
-      agent,
-      employeeId: emp.employeeId || String(emp._id || ""),
-    });
+    const email = req.user?.email;
+    const data = await svc.logFollowUp(req.params.id, req.params.stageType, email);
     ok(res, { data });
   } catch (e) { 
     err(res, e.message, 400); 
@@ -91,7 +85,8 @@ export const convertToClient = async (req, res) => {
 
 export const logOrder = async (req, res) => {
   try {
-    const emp = req.employee;
+    const email = req.user?.email;
+    const emp = await Employee.findOne({ email }, { firstName: 1, lastName: 1 }).lean();
     const data = await svc.logOrder(req.params.id, {
       ...req.body,
       loggedBy: `${emp.firstName || ""} ${emp.lastName || ""}`.trim() || emp.email,

@@ -1,5 +1,6 @@
 import XLSX from "xlsx";
 import DentalLead from "../models/manage/dentalLead.js";
+import Employee from "../models/manage/employee.model.js";
 
 const baseQuery = { isDeleted: false };
 const norm = (s) => String(s ?? "").toLowerCase().trim().replace(/[\s_\-\/\.]+/g, " ");
@@ -57,9 +58,8 @@ export const getAllLeads = async (filters = {}) => {
 };
 
 /* ─── CREATE INQUIRY ─────────────────────────────────────────────────────── */
-export const createLead = async (data, email) => {
-    const employee = await Employee.findOne({ email }, { firstName: 1, lastName: 1, _id: 1 }).lean();
-    return new DentalLead({ ...data, stage: "inquiry", Agent: `${employee.firstName || ""} ${employee.lastName || ""}`.trim() , employeeId: employee._id }).save();
+export const createLead = async (data) => {
+  return new DentalLead({ ...data, stage: "inquiry" }).save();
 };
 
 /* ─── GET BY ID ──────────────────────────────────────────────────────────── */
@@ -95,10 +95,13 @@ export const moveToFollowup = async (id) => {
 };
 
 /* ─── LOG FOLLOW-UP TOUCH (Strict validation for max array limits) ──────── */
-export const logFollowUp = async (id, stageType, payload) => {
+export const logFollowUp = async (id, stageType, email) => {
   if (!["pre-sale", "post-sale"].includes(stageType)) {
     throw new Error("Invalid stage type configuration string");
   }
+
+  const employee = await Employee.findOne({ email }, { firstName: 1, lastName: 1, _id: 1 }).lean();
+    return new DentalLead({ ...data, stage: "inquiry", Agent: `${employee.firstName || ""} ${employee.lastName || ""}`.trim() , employeeId: employee._id }).save();
 
   const lead = await DentalLead.findOne({ _id: id, ...baseQuery });
   if (!lead) throw new Error("Lead not found");
@@ -111,8 +114,8 @@ export const logFollowUp = async (id, stageType, payload) => {
   }
 
   const entry = {
-    agent:        payload.agent,
-    employeeId:   payload.employeeId,
+    agent: `${employee.firstName || ""} ${employee.lastName || ""}`.trim(),
+    employeeId:   employee._id,
     notes:        payload.notes,
     hurdle:       payload.hurdle || "None noted",
     nextCallDate: new Date(payload.nextCallDate),
