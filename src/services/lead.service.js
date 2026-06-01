@@ -95,36 +95,58 @@ export const moveToFollowup = async (id) => {
 };
 
 /* ─── LOG FOLLOW-UP TOUCH (Strict validation for max array limits) ──────── */
-export const logFollowUp = async (id, stageType, email) => {
+export const logFollowUp = async (
+  id,
+  stageType,
+  email,
+  payload
+) => {
   if (!["pre-sale", "post-sale"].includes(stageType)) {
-    throw new Error("Invalid stage type configuration string");
+    throw new Error("Invalid stage type");
   }
 
-  const employee = await Employee.findOne({ email }, { firstName: 1, lastName: 1, _id: 1 }).lean();
-    return new DentalLead({ ...data, stage: "inquiry", Agent: `${employee.firstName || ""} ${employee.lastName || ""}`.trim() , employeeId: employee._id }).save();
+  const employee = await Employee.findOne(
+    { email },
+    { firstName: 1, lastName: 1, _id: 1 }
+  ).lean();
 
-  const lead = await DentalLead.findOne({ _id: id, ...baseQuery });
-  if (!lead) throw new Error("Lead not found");
+  if (!employee) {
+    throw new Error("Employee not found");
+  }
 
-  const isPreSale = stageType === "pre-sale";
-  const arr = isPreSale ? lead.preSaleFollowups : lead.postSaleFollowups;
-  
+  const lead = await DentalLead.findOne({
+    _id: id,
+    ...baseQuery,
+  });
+
+  if (!lead) {
+    throw new Error("Lead not found");
+  }
+
+  const arr =
+    stageType === "pre-sale"
+      ? lead.preSaleFollowups
+      : lead.postSaleFollowups;
+
   if (arr.length >= 3) {
-    throw new Error(`All 3 ${stageType} touch slots have already been exhausted`);
+    throw new Error(
+      `All 3 ${stageType} touch slots have already been exhausted`
+    );
   }
 
   const entry = {
     agent: `${employee.firstName || ""} ${employee.lastName || ""}`.trim(),
-    employeeId:   employee._id,
-    notes:        payload.notes,
-    hurdle:       payload.hurdle || "None noted",
+    employeeId: employee._id,
+    notes: payload.notes,
+    hurdle: payload.hurdle || "None noted",
     nextCallDate: new Date(payload.nextCallDate),
-    touchNumber:  arr.length + 1,
-    loggedAt:     new Date(),
+    touchNumber: arr.length + 1,
+    loggedAt: new Date(),
   };
 
   arr.push(entry);
-  return lead.save();
+
+  return await lead.save();
 };
 
 /* ─── CONVERT FOLLOW-UP ➔ CLIENT ─────────────────────────────────────────── */

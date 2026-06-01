@@ -67,7 +67,12 @@ export const moveToFollowup = async (req, res) => {
 export const logFollowUp = async (req, res) => {
   try {
     const email = req.user?.email;
-    const data = await svc.logFollowUp(req.params.id, req.params.stageType, email);
+   const data = await svc.logFollowUp(
+  req.params.id,
+  req.params.stageType,
+  email,
+  req.body
+);
     ok(res, { data });
   } catch (e) { 
     err(res, e.message, 400); 
