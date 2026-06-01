@@ -151,7 +151,7 @@ export const logFollowUp = async (
 
 /* ─── CONVERT FOLLOW-UP ➔ CLIENT ─────────────────────────────────────────── */
 export const convertToClient = async (id) => {
-  const lead = await DentalLead.findOne({ _id: id, ...baseQuery });
+  const lead = await DentalLead.findById(id);
   if (!lead) throw new Error("Lead record not found");
   if (lead.stage === "client") throw new Error("This profile is already registered as a client");
 

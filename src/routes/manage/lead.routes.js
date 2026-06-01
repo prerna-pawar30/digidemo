@@ -16,7 +16,7 @@ router.post("/import-excel", uploadExcel.single("file"), lc.importExcel);
 /* ── CRUD ───────────────────────────────────────────────────────────────── */
 router.get("/",    lc.getAllLeads);  // ?stage=followup&search=mehta&page=1&limit=100
 router.post("/",   lc.createLead);
-router.get("/:id", lc.getLeadById);
+router.get("/:id", lc.getLeadById);     
 router.put("/:id", lc.updateLead);
 router.delete("/:id", lc.deleteLead);
 
