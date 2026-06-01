@@ -16,7 +16,8 @@ export const getAllLeads = async (req, res) => {
 
 export const createLead = async (req, res) => {
   try { 
-    const data = await svc.createLead(req.body);
+    const email = req.user?.email;
+    const data = await svc.createLead(req.body,email);
     ok(res, { data }, 201); 
   } catch (e) { 
     err(res, e.message, 400); 

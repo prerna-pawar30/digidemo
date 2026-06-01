@@ -34,7 +34,6 @@ const COL_MAP = {
 export const getAllLeads = async (filters = {}) => {
   const { stage, search, page = 1, limit = 200 } = filters;
   const query = { ...baseQuery };
-
   if (stage) query.stage = stage;
   if (search) {
     query.$or = [
@@ -45,7 +44,6 @@ export const getAllLeads = async (filters = {}) => {
       { remarks:    new RegExp(search, "i") },
     ];
   }
-
   const skip = (parseInt(page) - 1) * parseInt(limit);
   const [leads, total] = await Promise.all([
     DentalLead.find(query)
@@ -55,13 +53,13 @@ export const getAllLeads = async (filters = {}) => {
       .lean(),
     DentalLead.countDocuments(query),
   ]);
-
   return { leads, total, page: parseInt(page), totalPages: Math.ceil(total / parseInt(limit)) };
 };
 
 /* ─── CREATE INQUIRY ─────────────────────────────────────────────────────── */
-export const createLead = async (data) => {
-  return new DentalLead({ ...data, stage: "inquiry" }).save();
+export const createLead = async (data, email) => {
+    const employee = await Employee.findOne({ email }, { firstName: 1, lastName: 1, _id: 1 }).lean();
+    return new DentalLead({ ...data, stage: "inquiry", Agent: `${employee.firstName || ""} ${employee.lastName || ""}`.trim() , employeeId: employee._id }).save();
 };
 
 /* ─── GET BY ID ──────────────────────────────────────────────────────────── */
