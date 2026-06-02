@@ -3,8 +3,8 @@ import mongoose from "mongoose";
 /* ── Follow-up log entry (max 3 per array) ── */
 const followUpSchema = new mongoose.Schema(
   {
-    agent:       { type: String, required: true, trim: true },
-   employeeId: {
+  agent:       { type: String, required: true, trim: true },
+  employeeId: {
   type: mongoose.Schema.Types.ObjectId,
   ref: "Employee",
   required: true,
@@ -22,10 +22,10 @@ const followUpSchema = new mongoose.Schema(
 const dentalLeadSchema = new mongoose.Schema(
   {
     /* ─ Core identity ─ */
-    doctorName: { type: String, required: true, trim: true },
+    doctorName: { type: String, trim: true },
     clinicName: { type: String, trim: true, default: "" },
     email:      { type: String, lowercase: true, trim: true, default: "" },
-    contact:    { type: String, required: true, trim: true },
+    contact:    { type: String, trim: true },
     city:       { type: String, trim: true, default: "" },
     state:      { type: String, trim: true, default: "" },
     address:    { type: String, trim: true, default: "" },

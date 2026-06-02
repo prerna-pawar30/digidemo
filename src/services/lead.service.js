@@ -241,14 +241,14 @@ export const importFromExcel = async (fileBuffer) => {
         }
 
         await new DentalLead({
-          doctorName:       mappedData.doctorName || mappedData.clinicName,
+          doctorName:       mappedData.doctorName || "",
           clinicName:       mappedData.clinicName || "",
           email:            mappedData.email      || "",
           contact:          mappedData.contact,
           city:             mappedData.city       || "",
           state:            mappedData.state      || "",
           address:          mappedData.address    || "",
-          enquiry:          mappedData.enquiry    || "General Inquiry",
+          enquiry:          mappedData.enquiry    || "",
           remarks:          mappedData.remarks    || "",
           contactBy:        mappedData.contactBy  || "",
           stage:            "inquiry",
