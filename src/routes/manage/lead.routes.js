@@ -6,7 +6,7 @@ import {uploadExcel} from "../../middlewares/multer.middleware.js";
 
 const router = express.Router();
 
-router.use(auth); // all routes require valid employee token
+router.use(auth); 
 
 /* ── Special (must be before /:id) ──────────────────────────────────────── */
 router.get("/dashboard",  lc.getDashboard);
