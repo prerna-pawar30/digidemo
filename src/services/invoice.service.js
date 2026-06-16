@@ -233,7 +233,7 @@ export const getInvoiceByIdService = async ({ invoiceId }) => {
 
 export const getInvoicesService = async ({ query }) => {
   const { page, limit, skip } = getPagination(query);
-  const { search, status } = query;
+  const { search, status, month, year } = query;
 
   const filter = {
     isDeleted: false,
@@ -241,6 +241,24 @@ export const getInvoicesService = async ({ query }) => {
 
   if (status) {
     filter.status = status;
+  }
+
+  if (month || year) {
+    const now = new Date();
+    const targetYear = parseInt(year) || now.getFullYear();
+    const targetMonth = parseInt(month); // 1-12
+
+    if (targetMonth) {
+      // Both month and year (or just month with current year)
+      const startDate = new Date(targetYear, targetMonth - 1, 1);
+      const endDate = new Date(targetYear, targetMonth, 1);
+      filter.createdAt = { $gte: startDate, $lt: endDate };
+    } else {
+      // Only year provided
+      const startDate = new Date(targetYear, 0, 1);
+      const endDate = new Date(targetYear + 1, 0, 1);
+      filter.createdAt = { $gte: startDate, $lt: endDate };
+    }
   }
 
   if (search) {
