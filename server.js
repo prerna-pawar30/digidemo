@@ -56,6 +56,8 @@ const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:5174",
   "http://localhost:5175",
+  "http://localhost:8081",
+  "http://localhost:8082",
   "http://localhost:4000",
   "https://shop.digident.in",
   "https://digident.in",
@@ -63,6 +65,7 @@ const allowedOrigins = [
   "https://backend-5mo5.onrender.com",
   "https://digident-beta.netlify.app",
   "https://manage-beta.netlify.app",
+
   "https://digident-ecommerce-beta.netlify.app",
   "https://library.digident.in",
   "https://adminfrontend00.netlify.app",
