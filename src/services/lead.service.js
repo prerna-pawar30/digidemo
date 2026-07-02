@@ -416,9 +416,10 @@ export const updateWhatsapp = async (id, whatsappData = {}) => {
   return lead.save();
 };
 
-/* ─── LOG FOLLOW-UP TOUCH (auto-rolls into next round; first pre-sale
-     touch also auto-promotes lead from "inquiry" → "followup"; also
-     bumps callCount since a logged touch means a call was made) ──────── */
+
+/* ─── LOG FOLLOW-UP TOUCH (auto-rolls into next round; stage does NOT
+     change here — only the explicit "Move to Follow-up" action changes
+     stage. This just records the call outcome and bumps callCount) ──── */
 export const logFollowUp = async (id, stageType, email, payload) => {
   if (!["pre-sale", "post-sale"].includes(stageType)) {
     throw new Error("Invalid stage type");
@@ -474,9 +475,8 @@ export const logFollowUp = async (id, stageType, email, payload) => {
   // A logged follow-up touch IS a call — bump the counter automatically.
   lead.callCount = (lead.callCount || 0) + 1;
 
-  if (stageType === "pre-sale" && lead.stage === "inquiry") {
-    lead.stage = "followup";
-  }
+  // NOTE: stage intentionally NOT changed here. Agent must explicitly use
+  // the "→ Follow-up" action button (moveToFollowup) to move stages.
 
   return await lead.save();
 };
