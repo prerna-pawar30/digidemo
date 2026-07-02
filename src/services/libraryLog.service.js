@@ -50,6 +50,42 @@ const clearLibraryCache = async () => {
 };
 
 /* =========================================================
+   LIBRARY LOG HELPERS (software -> library nested model)
+========================================================= */
+const escapeRegex = (value = "") => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * Pushes a log entry into the matching software's library array
+ * (matched by brandName + category, case-insensitive). If this
+ * customer has no software entry with that brand+category yet,
+ * creates a new software entry with this log as its first library item.
+ *
+ * Implemented as two atomic updateOne calls (try-push-to-existing,
+ * fallback-to-create-new) instead of fetch+mutate+save, so it keeps
+ * the same atomicity guarantee the old `$push` into `logLibrary` had.
+ */
+const pushLibraryLog = async (customerId, { brandName, category, logEntry }) => {
+  const brandRegex = new RegExp(`^${escapeRegex(brandName.trim())}$`, "i");
+  const categoryRegex = new RegExp(`^${escapeRegex(category.trim())}$`, "i");
+
+  const pushedToExisting = await CustomerData.updateOne(
+    {
+      _id: customerId,
+      software: { $elemMatch: { brandName: brandRegex, category: categoryRegex } },
+    },
+    { $push: { "software.$[sw].library": logEntry } },
+    { arrayFilters: [{ "sw.brandName": brandRegex, "sw.category": categoryRegex }] }
+  );
+
+  if (pushedToExisting.modifiedCount === 0) {
+    await CustomerData.updateOne(
+      { _id: customerId },
+      { $push: { software: { brandName, category, library: [logEntry] } } }
+    );
+  }
+};
+
+/* =========================================================
    SEND EMAIL OTP
 ========================================================= */
 export const sendEmailOtpService = async ({ email }) => {
@@ -75,165 +111,8 @@ export const sendEmailOtpService = async ({ email }) => {
 };
 
 /* =========================================================
-   VERIFY OTP AND CREATE CUSTOMER
+   VERIFY OTP & CREATE CUSTOMER (now pushes into software.library)
 ========================================================= */
-// export const verifyOtpAndCreateCustomerService = async ({
-//   email,
-//   otp,
-//   libraryObjectId,
-//   libraryId,
-//   brand,
-//   category,
-//   firstName,
-//   lastName,
-//   mobileNumber,
-//   companyName,
-//   address,
-// }) => {
-//   const normalizedEmail = email.toLowerCase().trim();
-//   const isScanbridge = category.toLowerCase() === "scanbridge";
-//   const existingUser = await CustomerData.findOne({ email: normalizedEmail });
-//   /* ---------- SEND LIBRARY REQUEST EMAILS FOR SCANBRIDGE ---------- */
-//   if (isScanbridge) {
-//     try {
-//       await sendZohoMail(
-//         ADMIN_EMAILS.join(","),
-//         `New Library Request for ${brand} - ${category}`,
-//         adminLibraryRequestTemplate(normalizedEmail, brand, category)
-//       );
-//       await sendZohoMail(
-//         normalizedEmail,
-//         "Your Library Request Has Been Received",
-//         userLibraryRequestTemplate(brand, category)
-//       );
-//     } catch (err) {
-//       console.error("Scanbridge email failed:", err.message);
-//     }
-//   }
-
-//   /* ---------- BUILD LOG ENTRY (no libraryObjectId/libraryId for scanbridge) ---------- */
-//   const libraryLogEntry = {
-//     ...(isScanbridge ? {} : { libraryObjectId, libraryId }),
-//     brandName: brand,
-//     category,
-//     date: new Date(),
-//   };
-//   console.log("Library Log Entry:", libraryLogEntry);
-//   /* ---------- IF CUSTOMER ALREADY VERIFIED ---------- */
-//   if (existingUser && existingUser.isEmailVerified) {
-//     await CustomerData.updateOne(
-//       { _id: existingUser._id },
-//       { $push: { logLibrary: libraryLogEntry } }
-//     );
-
-//     await clearLibraryCache();
-
-//     try {
-//       await sendNotification({
-//         sender: null,
-//         permission: "library.listing.read",
-//         title: "Library Downloaded",
-//         message: `${normalizedEmail} downloaded "${brand}" library (${category})`,
-//         type: "LIBRARY_DOWNLOADED",
-//         entityId: existingUser._id,
-//         entityModel: "CustomerData",
-//         metadata: {
-//           customerId: existingUser._id,
-//           email: normalizedEmail,
-//           ...(isScanbridge ? {} : { libraryId }),
-//           brand,
-//           category,
-//         },
-//       });
-//     } catch (err) {
-//       console.error("Notification failed on library download:", err.message);
-//     }
-
-//     return {
-//       userId: existingUser._id,
-//       email: existingUser.email,
-//       isVerified: true,
-//       message: "Email already verified, library log updated",
-//     };
-//   }
-
-//   /* ---------- VALIDATE OTP ---------- */
-//   if (!otp) {
-//     const error = new Error("OTP is required");
-//     error.statusCode = 400;
-//     error.errorCode = "OTP_REQUIRED";
-//     throw error;
-//   }
-
-//   const otpRecord = await EmailVerifyDummy.findOne({ email: normalizedEmail });
-
-//   if (!otpRecord) {
-//     const error = new Error("OTP not found. Please request again.");
-//     error.statusCode = 400;
-//     error.errorCode = "OTP_NOT_FOUND";
-//     throw error;
-//   }
-
-//   if (otpRecord.otp !== otp) {
-//     const error = new Error("Invalid OTP");
-//     error.statusCode = 400;
-//     error.errorCode = "INVALID_OTP";
-//     throw error;
-//   }
-
-//   if (otpRecord.otpExpiry < new Date()) {
-//     await EmailVerifyDummy.deleteOne({ email: normalizedEmail });
-//     const error = new Error("OTP expired. Please request again.");
-//     error.statusCode = 400;
-//     error.errorCode = "OTP_EXPIRED";
-//     throw error;
-//   }
-
-//   /* ---------- CREATE CUSTOMER ---------- */
-//   const customer = await CustomerData.create({
-//     customerId: uuidv6(),
-//     firstName,
-//     lastName,
-//     email: normalizedEmail,
-//     mobileNumber,
-//     companyName,
-//     address,
-//     isEmailVerified: true,
-//     logLibrary: [libraryLogEntry],
-//   });
-
-//   await EmailVerifyDummy.deleteOne({ email: normalizedEmail });
-//   await clearLibraryCache();
-
-//   try {
-//     await sendNotification({
-//       sender: null,
-//       permission: "library.listing.read",
-//       title: "Library Downloaded",
-//       message: `${normalizedEmail} downloaded "${brand}" library (${category})`,
-//       type: "LIBRARY_DOWNLOADED",
-//       entityId: customer._id,
-//       entityModel: "CustomerData",
-//       metadata: {
-//         customerId: customer._id,
-//         email: normalizedEmail,
-//         ...(isScanbridge ? {} : { libraryId }),
-//         brand,
-//         category,
-//       },
-//     });
-//   } catch (err) {
-//     console.error("Notification failed on library download:", err.message);
-//   }
-
-//   return {
-//     userId: customer._id,
-//     email: customer.email,
-//     isVerified: true,
-//     message: "OTP verified and customer created successfully",
-//   };
-// };
-
 export const verifyOtpAndCreateCustomerService = async ({
   email,
   otp,
@@ -249,25 +128,19 @@ export const verifyOtpAndCreateCustomerService = async ({
 }) => {
   const normalizedEmail = email.toLowerCase().trim();
 
-  const isScanbridge =
-    category?.toLowerCase() === "scanbridge";
+  const isScanbridge = category?.toLowerCase() === "scanbridge";
 
   /* ---------- VALIDATE REQUIRED IDS FOR NON-SCANBRIDGE ---------- */
   if (!isScanbridge) {
     if (!libraryId || !libraryObjectId) {
-      const error = new Error(
-        "libraryId and libraryObjectId are required"
-      );
+      const error = new Error("libraryId and libraryObjectId are required");
       error.statusCode = 400;
       error.errorCode = "LIBRARY_DETAILS_REQUIRED";
       throw error;
     }
   }
 
-  const existingUser =
-    await CustomerData.findOne({
-      email: normalizedEmail,
-    });
+  const existingUser = await CustomerData.findOne({ email: normalizedEmail });
 
   /* ---------- SEND EMAILS FOR SCANBRIDGE ---------- */
   if (isScanbridge) {
@@ -275,71 +148,46 @@ export const verifyOtpAndCreateCustomerService = async ({
       await sendZohoMail(
         ADMIN_EMAILS.join(","),
         `New Library Request for ${brand} - ${category}`,
-        adminLibraryRequestTemplate(
-          normalizedEmail,
-          brand,
-          category
-        )
+        adminLibraryRequestTemplate(normalizedEmail, brand, category)
       );
 
       await sendZohoMail(
         normalizedEmail,
         "Your Library Request Has Been Received",
-        userLibraryRequestTemplate(
-          brand,
-          category
-        )
+        userLibraryRequestTemplate(brand, category)
       );
     } catch (err) {
-      console.error(
-        "Scanbridge email failed:",
-        err.message
-      );
+      console.error("Scanbridge email failed:", err.message);
     }
   }
 
-  /* ---------- BUILD LIBRARY LOG ENTRY ---------- */
+  /* ---------- BUILD LIBRARY LOG ENTRY (lives inside software.library now) ---------- */
   const libraryLogEntry = {
-    brandName: brand,
-    category,
     date: new Date(),
   };
 
   /* ---------- ADD IDS ONLY FOR NON-SCANBRIDGE ---------- */
   if (!isScanbridge) {
-    libraryLogEntry.libraryObjectId =
-      libraryObjectId;
-
-    libraryLogEntry.libraryId =
-      libraryId;
+    libraryLogEntry.libraryObjectId = libraryObjectId;
+    libraryLogEntry.libraryId = libraryId;
   }
 
-  console.log(
-    "Library Log Entry:",
-    libraryLogEntry
-  );
+  console.log("Library Log Entry:", libraryLogEntry);
 
   /* ---------- EXISTING VERIFIED CUSTOMER ---------- */
-  if (
-    existingUser &&
-    existingUser.isEmailVerified
-  ) {
-    await CustomerData.updateOne(
-      { _id: existingUser._id },
-      {
-        $push: {
-          logLibrary: libraryLogEntry,
-        },
-      }
-    );
+  if (existingUser && existingUser.isEmailVerified) {
+    await pushLibraryLog(existingUser._id, {
+      brandName: brand,
+      category,
+      logEntry: libraryLogEntry,
+    });
 
     await clearLibraryCache();
 
     try {
       await sendNotification({
         sender: null,
-        permission:
-          "library.listing.read",
+        permission: "library.listing.read",
         title: "Library Downloaded",
         message: `${normalizedEmail} downloaded "${brand}" library (${category})`,
         type: "LIBRARY_DOWNLOADED",
@@ -350,111 +198,80 @@ export const verifyOtpAndCreateCustomerService = async ({
           email: normalizedEmail,
           brand,
           category,
-          ...(isScanbridge
-            ? {}
-            : {
-                libraryId,
-                libraryObjectId,
-              }),
+          ...(isScanbridge ? {} : { libraryId, libraryObjectId }),
         },
       });
     } catch (err) {
-      console.error(
-        "Notification failed on library download:",
-        err.message
-      );
+      console.error("Notification failed on library download:", err.message);
     }
 
     return {
       userId: existingUser._id,
       email: existingUser.email,
       isVerified: true,
-      message:
-        "Email already verified, library log updated",
+      message: "Email already verified, library log updated",
     };
   }
 
   /* ---------- VALIDATE OTP ---------- */
   if (!otp) {
-    const error = new Error(
-      "OTP is required"
-    );
-
+    const error = new Error("OTP is required");
     error.statusCode = 400;
     error.errorCode = "OTP_REQUIRED";
-
     throw error;
   }
 
-  const otpRecord =
-    await EmailVerifyDummy.findOne({
-      email: normalizedEmail,
-    });
+  const otpRecord = await EmailVerifyDummy.findOne({ email: normalizedEmail });
 
   if (!otpRecord) {
-    const error = new Error(
-      "OTP not found. Please request again."
-    );
-
+    const error = new Error("OTP not found. Please request again.");
     error.statusCode = 400;
     error.errorCode = "OTP_NOT_FOUND";
-
     throw error;
   }
 
   if (otpRecord.otp !== otp) {
-    const error = new Error(
-      "Invalid OTP"
-    );
-
+    const error = new Error("Invalid OTP");
     error.statusCode = 400;
     error.errorCode = "INVALID_OTP";
-
     throw error;
   }
 
-  if (
-    otpRecord.otpExpiry < new Date()
-  ) {
-    await EmailVerifyDummy.deleteOne({
-      email: normalizedEmail,
-    });
-
-    const error = new Error(
-      "OTP expired. Please request again."
-    );
-
+  if (otpRecord.otpExpiry < new Date()) {
+    await EmailVerifyDummy.deleteOne({ email: normalizedEmail });
+    const error = new Error("OTP expired. Please request again.");
     error.statusCode = 400;
     error.errorCode = "OTP_EXPIRED";
-
     throw error;
   }
 
-  /* ---------- CREATE CUSTOMER ---------- */
-  const customer =
-    await CustomerData.create({
-      customerId: uuidv6(),
-      firstName,
-      lastName,
-      email: normalizedEmail,
-      mobileNumber,
-      companyName,
-      address,
-      isEmailVerified: true,
-      logLibrary: [libraryLogEntry],
-    });
-
-  await EmailVerifyDummy.deleteOne({
+  /* ---------- CREATE CUSTOMER WITH FIRST SOFTWARE ENTRY ---------- */
+  const customer = await CustomerData.create({
+    customerId: uuidv6(),
+    firstName,
+    lastName,
     email: normalizedEmail,
+    mobileNumber,
+    companyName,
+    address,
+    isEmailVerified: true,
+    software: [
+      {
+        brandName: brand,
+        category,
+        library: [libraryLogEntry],
+      },
+    ],
   });
+
+  await EmailVerifyDummy.deleteOne({ email: normalizedEmail });
 
   await clearLibraryCache();
 
   try {
     await sendNotification({
       sender: null,
-      permission:
-        "library.listing.read",
+      permission: "library.listing.read",
       title: "Library Downloaded",
       message: `${normalizedEmail} downloaded "${brand}" library (${category})`,
       type: "LIBRARY_DOWNLOADED",
@@ -465,32 +282,23 @@ export const verifyOtpAndCreateCustomerService = async ({
         email: normalizedEmail,
         brand,
         category,
-        ...(isScanbridge
-          ? {}
-          : {
-              libraryId,
-              libraryObjectId,
-            }),
+        ...(isScanbridge ? {} : { libraryId, libraryObjectId }),
       },
     });
   } catch (err) {
-    console.error(
-      "Notification failed on library download:",
-      err.message
-    );
+    console.error("Notification failed on library download:", err.message);
   }
 
   return {
     userId: customer._id,
     email: customer.email,
     isVerified: true,
-    message:
-      "OTP verified and customer created successfully",
+    message: "OTP verified and customer created successfully",
   };
 };
 
 /* =========================================================
-   GET ALL CONSUMERS
+   GET ALL CONSUMERS  (unchanged — no logLibrary-specific code)
 ========================================================= */
 export const getAllConsumersService = async ({ skip, limit, page }) => {
   const cacheKey = `LIBRARY:CONSUMERS:${page}:${limit}`;
@@ -525,7 +333,7 @@ export const getAllConsumersService = async ({ skip, limit, page }) => {
 };
 
 /* =========================================================
-   GET EMAIL VERIFY DUMMY
+   GET EMAIL VERIFY DUMMY (unchanged)
 ========================================================= */
 export const getEmailVerifyDummyService = async ({ email, skip, limit, page }) => {
   const filter = {};
@@ -552,7 +360,7 @@ export const getEmailVerifyDummyService = async ({ email, skip, limit, page }) =
 };
 
 /* =========================================================
-   GET LIBRARY DASHBOARD
+   GET LIBRARY DASHBOARD (now double-unwinds software -> library)
 ========================================================= */
 export const getLibraryDashboardService = async ({
   days,
@@ -573,40 +381,41 @@ export const getLibraryDashboardService = async ({
   startDate.setDate(startDate.getDate() - days);
 
   const matchStage = {
-    "logLibrary.date": { $gte: startDate },
+    "software.library.date": { $gte: startDate },
   };
-  if (categoryFilter) matchStage["logLibrary.category"] = categoryFilter;
-  if (brandFilter) matchStage["logLibrary.brandName"] = brandFilter;
+  if (categoryFilter) matchStage["software.category"] = categoryFilter;
+  if (brandFilter) matchStage["software.brandName"] = brandFilter;
 
   let groupStage;
   switch (groupBy) {
     case "category":
       groupStage = {
-        _id: "$logLibrary.category",
+        _id: "$software.category",
         usageCount: { $sum: 1 },
-        lastUsedAt: { $max: "$logLibrary.date" },
+        lastUsedAt: { $max: "$software.library.date" },
       };
       break;
     case "brand":
       groupStage = {
-        _id: "$logLibrary.brandName",
+        _id: "$software.brandName",
         usageCount: { $sum: 1 },
-        lastUsedAt: { $max: "$logLibrary.date" },
+        lastUsedAt: { $max: "$software.library.date" },
       };
       break;
-    default:
+    default: // "library"
       groupStage = {
-        _id: "$logLibrary.libraryObjectId",
-        libraryId: { $first: "$logLibrary.libraryId" },
-        brandName: { $first: "$logLibrary.brandName" },
-        category: { $first: "$logLibrary.category" },
+        _id: "$software.library.libraryObjectId",
+        libraryId: { $first: "$software.library.libraryId" },
+        brandName: { $first: "$software.brandName" },
+        category: { $first: "$software.category" },
         usageCount: { $sum: 1 },
-        lastUsedAt: { $max: "$logLibrary.date" },
+        lastUsedAt: { $max: "$software.library.date" },
       };
   }
 
   const data = await CustomerData.aggregate([
-    { $unwind: "$logLibrary" },
+    { $unwind: "$software" },
+    { $unwind: "$software.library" },
     { $match: matchStage },
     { $group: groupStage },
     { $sort: { usageCount: -1 } },
@@ -627,7 +436,7 @@ export const getLibraryDashboardService = async ({
 };
 
 /* =========================================================
-   DELETE OTP BY EMAIL
+   DELETE OTP BY EMAIL (unchanged)
 ========================================================= */
 export const deleteOtpByEmailService = async (email) => {
   const deletedRecord = await EmailVerifyDummy.findOneAndDelete({
@@ -645,7 +454,7 @@ export const deleteOtpByEmailService = async (email) => {
 };
 
 /* =========================================================
-   GET SCANBRIDGE LIBRARY
+   GET SCANBRIDGE LIBRARY (now flattens software -> library)
 ========================================================= */
 export const getScanbridgeLibraryService = async ({ page = 1, limit = 12 }) => {
   const currentPage = Number(page) || 1;
@@ -661,31 +470,34 @@ export const getScanbridgeLibraryService = async ({ page = 1, limit = 12 }) => {
   }
 
   const customers = await CustomerData.find(
-    { "logLibrary.category": { $regex: /^scanbridge$/i } },
-    { firstName: 1, lastName: 1, email: 1, companyName: 1, logLibrary: 1, mobileNumber: 1 }
+    { "software.category": { $regex: /^scanbridge$/i } },
+    { firstName: 1, lastName: 1, email: 1, companyName: 1, mobileNumber: 1, software: 1 }
   ).lean();
 
   const scanbridgeLibrary = [];
 
   for (const customer of customers) {
-    const filteredLogs = (customer.logLibrary || []).filter(
-      (item) => item.category?.toLowerCase() === "scanbridge"
+    const scanbridgeSoftwareEntries = (customer.software || []).filter(
+      (sw) => sw.category?.toLowerCase() === "scanbridge"
     );
 
-    for (const log of filteredLogs) {
-      scanbridgeLibrary.push({
-        customerId: customer._id,
-        firstName: customer.firstName,
-        lastName: customer.lastName,
-        email: customer.email,
-        mobileNumber: customer.mobileNumber,
-        companyName: customer.companyName,
-        logId: log._id,
-        brandName: log.brandName || null,
-        category: log.category,
-        isdelivered: log.isdelivered ?? false,
-        date: log.date,
-      });
+    for (const sw of scanbridgeSoftwareEntries) {
+      for (const log of sw.library || []) {
+        scanbridgeLibrary.push({
+          customerId: customer._id,
+          firstName: customer.firstName,
+          lastName: customer.lastName,
+          email: customer.email,
+          mobileNumber: customer.mobileNumber,
+          companyName: customer.companyName,
+          softwareId: sw._id,
+          logId: log._id,
+          brandName: sw.brandName || null,
+          category: sw.category,
+          isdelivered: log.isdelivered ?? false,
+          date: log.date,
+        });
+      }
     }
   }
 
@@ -700,7 +512,7 @@ export const getScanbridgeLibraryService = async ({ page = 1, limit = 12 }) => {
     pagination: {
       totalItems,
       totalPages,
-      currentPage: currentPage,
+      currentPage,
       nextPage: currentPage < totalPages ? currentPage + 1 : null,
       prevPage: currentPage > 1 ? currentPage - 1 : null,
       limit: perPage,
@@ -712,9 +524,14 @@ export const getScanbridgeLibraryService = async ({ page = 1, limit = 12 }) => {
 };
 
 /* =========================================================
-   UPDATE SCANBRIDGE LIBRARY
+   UPDATE SCANBRIDGE LIBRARY (now searches software[].library[])
 ========================================================= */
-export const updateScanbridgeLibraryService = async ({ customerId, logId, isdelivered }) => {
+export const updateScanbridgeLibraryService = async ({
+  customerId,
+  softwareId, // optional — pass it if you have it (from getScanbridgeLibrary response) for a direct lookup
+  logId,
+  isdelivered,
+}) => {
   const customer = await CustomerData.findById(customerId);
 
   if (!customer) {
@@ -724,14 +541,35 @@ export const updateScanbridgeLibraryService = async ({ customerId, logId, isdeli
     throw error;
   }
 
-  const libraryLog = customer.logLibrary.find(
-    (log) => log._id.toString() === logId
-  );
+  let softwareEntry;
+  let libraryLog;
 
-  if (!libraryLog) {
+  if (softwareId) {
+    softwareEntry = customer.software.find((sw) => sw._id.toString() === softwareId);
+    libraryLog = softwareEntry?.library.find((log) => log._id.toString() === logId);
+  } else {
+    // Fallback: scan every software entry for this customer to find the log
+    for (const sw of customer.software) {
+      const match = sw.library.find((log) => log._id.toString() === logId);
+      if (match) {
+        softwareEntry = sw;
+        libraryLog = match;
+        break;
+      }
+    }
+  }
+
+  if (!softwareEntry || !libraryLog) {
     const error = new Error("Log not found");
     error.statusCode = 404;
     error.errorCode = "LOG_NOT_FOUND";
+    throw error;
+  }
+
+  if (softwareEntry.category?.toLowerCase() !== "scanbridge") {
+    const error = new Error("This log does not belong to a scanbridge category");
+    error.statusCode = 400;
+    error.errorCode = "INVALID_CATEGORY";
     throw error;
   }
 
@@ -740,5 +578,13 @@ export const updateScanbridgeLibraryService = async ({ customerId, logId, isdeli
 
   await clearLibraryCache();
 
-  return libraryLog;
+  return {
+    customerId: customer._id,
+    softwareId: softwareEntry._id,
+    logId: libraryLog._id,
+    brandName: softwareEntry.brandName,
+    category: softwareEntry.category,
+    isdelivered: libraryLog.isdelivered,
+    date: libraryLog.date,
+  };
 };

@@ -65,7 +65,6 @@ const allowedOrigins = [
   "https://backend-5mo5.onrender.com",
   "https://digident-beta.netlify.app",
   "https://manage-beta.netlify.app",
-
   "https://digident-ecommerce-beta.netlify.app",
   "https://library.digident.in",
   "https://adminfrontend00.netlify.app",

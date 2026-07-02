@@ -1,34 +1,46 @@
 import mongoose from "mongoose";
 
+// Each log entry inside a software's library
 const libraryLogsSchema = new mongoose.Schema(
   {
-      libraryObjectId: {
+    libraryObjectId: {
       type: mongoose.Schema.Types.ObjectId,
     },
     libraryId: {
-      type: String, 
+      type: String,
       trim: true,
     },
+    isdelivered: {
+      type: Boolean,
+      default: false,
+    },
+    date: {
+      type: Date,
+      default: Date.now,
+    },
+  },
+  { _id: true } 
+);
+
+// Each software added to a customer — has its own library array
+const softwareSchema = new mongoose.Schema(
+  {
     brandName: {
       type: String,
       required: true,
       trim: true,
     },
-    category:{
+    category: {
       type: String,
       required: true,
       trim: true,
     },
-     isdelivered:{
-      type: Boolean,
-      default: false,
-    },
-    date:{
-      type: Date,
-      default: Date.now,
+    library: {
+      type: [libraryLogsSchema],
+      default: [],
     },
   },
-  { _id: true } // keeps log entry _id
+  { _id: true, timestamps: true } 
 );
 
 const customerDataSchema = new mongoose.Schema(
@@ -68,33 +80,18 @@ const customerDataSchema = new mongoose.Schema(
       required: true,
     },
     address: {
-      line1: {
-        type: String,
-        required: true,
-      },
-      city: {
-        type: String,
-        required: true,
-      },
-      state: {
-        type: String,
-        required: true,
-      },
-      postalCode: {
-        type: String,
-        required: true,
-      },
-      country: {
-        type: String,
-        required: true,
-      },
+      line1: { type: String, required: true },
+      city: { type: String, required: true },
+      state: { type: String, required: true },
+      postalCode: { type: String, required: true },
+      country: { type: String, required: true },
     },
-    logLibrary: {
-      type: [libraryLogsSchema],
-      required: true,
+    software: {
+      type: [softwareSchema],
+      default: [],
     },
   },
   { timestamps: true }
 );
-export default mongoose.model("CustomerData", customerDataSchema);
 
+export default mongoose.model("CustomerData", customerDataSchema);
