@@ -24,7 +24,7 @@ export const resetPasswordTemplate = (resetLink, userName) => {
       <p>
         If the button doesn't work, click or copy the link below into your browser:
         <br/>
-        <a href="${resetLink}" style="color: #0078d7;">${resetLink}</a>
+        <a href="${resetLink}" style="color: #0078d7;">Click here -> </a>
       </p>
 
       <p>This link will expire in <b>1 hour</b> for security reasons.</p>

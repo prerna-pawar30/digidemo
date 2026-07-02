@@ -41,7 +41,6 @@ export const createBlog = async (req, res) => {
         errorCode: "EMPLOYEE_NOT_FOUND",
       });
     }
-
     const blog = await createBlogService({
       data: value,featuredImage,
       employee,
@@ -102,7 +101,6 @@ export const updateBlog = async (req, res) => {
       abortEarly: false,
       stripUnknown: true,
     });
-
     if (error) {
       return sendError(res, {
         message: "Validation failed",
@@ -111,9 +109,7 @@ export const updateBlog = async (req, res) => {
         details: error.details.map((e) => e.message),
       });
     }
-
     const employee = await Employee.findOne({ email: req.user.email });
-
     if (!employee) {
       return sendError(res, {
         message: "Employee not found",
@@ -121,13 +117,11 @@ export const updateBlog = async (req, res) => {
         errorCode: "EMPLOYEE_NOT_FOUND",
       });
     }
-
     const blog = await updateBlogService({
       blogId: req.params.blogId,
       data: value,featuredImage,
       employee,
     });
-
     return sendSuccess(res, blog, 200, "Blog updated successfully");
   } catch (error) {
     return handleError(res, error);

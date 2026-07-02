@@ -86,7 +86,7 @@ export const createEmployeeService = async (data, adminEmail) => {
   try {
     await sendNotification({
       sender: admin._id,
-      permission: "employee.listing.read",
+      permission: "auth.account.create",
       title: "New Employee Created",
       message: `${firstName} ${lastName} has been added as role ${role}`,
       type: "EMPLOYEE_CREATED",
@@ -207,11 +207,11 @@ export const getEmployeeService = async (email) => {
 
 };
 
-export const deleteEmployeeService = async (
+export const deleteEmployeeService = async(
   employeeId,
   adminEmail,
   permission
-) => {
+)=>{
   const employee = await Employee.findOne({
     employeeId,
     isDeleted: false
@@ -225,7 +225,7 @@ export const deleteEmployeeService = async (
     isDeleted: false
   });
 
-  if (!admin) {
+  if (!admin){
     throw new Error("UNAUTHORIZED_ACTION");
   }
   employee.isDeleted = true;
@@ -251,7 +251,7 @@ export const deleteEmployeeService = async (
 try{
   await sendNotification({
     sender: admin._id,
-    permission: "employee.listing.read",
+    permission: "auth.account.delete",
     title: "Employee Deleted",
     message: `${employee.firstName} ${employee.lastName} account deleted by ${admin.firstName} ${admin.lastName}`,
     type: "EMPLOYEE_DELETED",
@@ -273,7 +273,7 @@ try{
   };
 };
 
-export const updateEmployeeRoleService = async (
+export const updateEmployeeRoleService = async(
   employeeEmail,
   role,
   adminEmail,
@@ -326,7 +326,7 @@ try{
 try{
     await sendNotification({
       sender: admin._id,
-      permission: "employee.listing.read",
+      permission: "auth.account.update",
   
       title: "Employee Role Updated",
   

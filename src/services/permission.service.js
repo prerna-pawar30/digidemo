@@ -54,7 +54,7 @@ await Employee.updateMany(
   try {
     await sendNotification({
       sender: admin._id,
-      permission: "permission.listing.create",
+      permission: "system.permission.create",
       title: "Permission Created",
       message: `Permission "${permission.name}" was created by ${admin.email}`,
       type: "PERMISSION_CREATED",
@@ -154,7 +154,7 @@ export const deletePermissionService = async (
   try {
     await sendNotification({
       sender: admin._id,
-      permission: "permission.listing.delete",
+      permission: "system.permission.delete",
       title: "Permission Deleted",
       message: `Permission "${permission.name}" was deleted by ${admin.email}`,
       type: "PERMISSION_DELETED",
@@ -228,6 +228,26 @@ export const assignPermissionToEmployeeService = async (data, currentUser) => {
     permission,
     action: "assign",
   });
+  /* ---------- NOTIFICATION ---------- */
+  try {
+    await sendNotification({
+      sender: admin._id,
+      permission: "system.permission.assign",
+      title: "Permission Assigned",
+      message: `Permission "${permission.name}" was assigned to ${target.email} by ${admin.email}`,
+      type: "PERMISSION_ASSIGNED",
+      entityId: target._id,
+      entityModel: "Employee",
+      metadata: {
+        permissionId: permission.permissionId,
+        permissionName: permission.name,
+        createdBy: admin.email,
+        auditId: audit._id,
+      },
+    });
+  } catch (err) {
+    console.error("Notification failed on permission assign:", err.message);
+  }
 
   return { email, permission };
 };
@@ -277,6 +297,26 @@ export const removePermissionFromEmployeeService = async (data, currentUser) => 
     permission,
     action: "revoke",
   });
+  /* ---------- NOTIFICATION ---------- */
+  try {
+    await sendNotification({
+      sender: admin._id,
+      permission: "system.permission.revoke",
+      title: "Permission Revoked",
+      message: `Permission "${permission.name}" was revoked from ${target.email} by ${admin.email}`,
+      type: "PERMISSION_REVOKED",
+      entityId: target._id,
+      entityModel: "Employee",
+      metadata: {
+        permissionId: permission.permissionId,
+        permissionName: permission.name,
+        createdBy: admin.email,
+        auditId: audit._id,
+      },
+    });
+  } catch (err) {
+    console.error("Notification failed on permission revoke:", err.message);
+  }
 
   return { email, permission };
 };

@@ -375,16 +375,13 @@ export const deleteCustomerData = async (req, res) => {
 export const getAllConsumers = async (req, res) => {
   try {
     const { page, limit, skip } = getPagination(req.query);
-
     const result = await getAllConsumersService({ skip, limit, page });
-
     return sendSuccess(
       res,
       result,
       200,
       "All consumers retrieved successfully"
     );
-
   } catch (error) {
     console.error("Get All Consumers Error:", error);
     return handleError(res, error);

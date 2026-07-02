@@ -115,7 +115,7 @@ export const createBlogService = async ({ data,featuredImage, employee }) => {
   try {
     await sendNotification({
       sender: employee?._id || null,
-      permission: "blog.listing.read",
+      permission: "cms.blog.create",
       title: "New Blog Created",
       message: `A new blog "${blog.title}" has been published`,
       type: "BLOG_CREATED",
@@ -246,16 +246,8 @@ export const getBlogBySlugService = async ({ slug }) => {
    UPDATE BLOG
 ========================================================= */
 export const updateBlogService = async ({ blogId, data,featuredImage, employee }) => {
+  let featuredUpload = null;
   try{
-  if (!featuredImage) {
-    const error = new Error(
-      "Featured image is required"
-    );
-    error.statusCode = 400;
-    error.errorCode =
-      "VALIDATION_ERROR";
-    throw error;
-  }
   const blog = await Blog.findOne({ blogId, isDeleted: false });
   if (!blog) {
     const error = new Error("Blog not found");
@@ -284,11 +276,11 @@ export const updateBlogService = async ({ blogId, data,featuredImage, employee }
     if (blog.featuredImage) {
       await deleteFromS3(blog.featuredImage);
     }
-    const uploaded = await uploadToS3(
+    featuredUpload = await uploadToS3(
       featuredImage,
       "blogs/featured"
     );
-    blog.featuredImage = uploaded.url;
+    blog.featuredImage = featuredUpload.url;
   }
 
   const oldData = {
@@ -326,7 +318,7 @@ export const updateBlogService = async ({ blogId, data,featuredImage, employee }
   try {
     await sendNotification({
       sender: employee?._id || null,
-      permission: "blog.listing.read",
+      permission: "cms.blog.update",
       title: "Blog Updated",
       message: `Blog "${blog.title}" has been updated`,
       type: "BLOG_UPDATED",
@@ -395,7 +387,7 @@ export const deleteBlogService = async ({ blogId, employee }) => {
   try {
     await sendNotification({
       sender: employee?._id || null,
-      permission: "blog.listing.read",
+      permission: "cms.blog.delete",
       title: "Blog Deleted",
       message: `Blog "${blog.title}" has been deleted`,
       type: "BLOG_DELETED",
@@ -448,7 +440,7 @@ export const addBlogCommentService = async ({ blogId, data }) => {
   try {
     await sendNotification({
       sender: null,
-      permission: "blog.lisiting.read",   // only moderators get this
+      permission: "cms.blog.read",   // only moderators get this
       title: "New Comment Pending Approval",
       message: `New comment on "${blog.title}" by ${data.name} — awaiting moderation`,
       type: "BLOG_COMMENT_ADDED",
@@ -540,7 +532,7 @@ export const deleteBlogCommentService = async ({
   try {
     await sendNotification({
       sender: employee._id,
-      permission: "blog.listing.read",
+      permission: "cms.blog.read",
       title: "Blog Comment Deleted",
       message: `Comment on "${blog.title}" deleted by ${employee.email}`,
       type: "BLOG_COMMENT_DELETED",

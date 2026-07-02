@@ -180,17 +180,14 @@ export const createOrderService = async (data, currentUser) => {
   /* ================= ITEMS ================= */
   let subtotal = 0;
   const items = [];
-
   for (const item of frontendItems) {
     const { productId, variantId, quantity } = item;
-
     if (!productId || !variantId || !quantity || Number(quantity) <= 0) {
       const error = new Error("Invalid item data");
       error.statusCode = 400;
       error.errorCode = "INVALID_ITEM_DATA";
       throw error;
     }
-
     const product = await Product.findOne({
       productId,
       status: "active",
@@ -354,6 +351,27 @@ export const createOrderService = async (data, currentUser) => {
     razorpayOrderId: razorpayOrder.id,
   });
 
+   /* ---------- NOTIFICATION ---------- */
+    try {
+      await sendNotification({
+        sender: employee?._id,
+        permission: "sales.order.update",
+        title: "Order Created",
+        message: `New order created for ${orderItem.orderId}`,
+        type: "ORDER_CREATED",
+        entityId: orderItem.orderId,
+        entityModel: "Order",
+        metadata: {
+          orderId: orderItem.orderId,
+          title: orderItem.title,
+          slug: orderItem.slug,
+          createdBy: employee?.email || null,
+        },
+      });
+    } catch (err) {
+      console.error("Notification failed on create order:", err.message);
+    }
+
   return {
     razorpayOrderId: razorpayOrder.id,
     amount: razorpayOrder.amount,
@@ -361,6 +379,8 @@ export const createOrderService = async (data, currentUser) => {
     orderItem,
   };
 };
+
+
 // export const createOrderService = async (data, currentUser) => {
 //   if (!currentUser?._id) {
 //     throw new Error("Unauthorized User");
@@ -880,37 +900,26 @@ export const cancelOrderService = async (orderId, currentUser, reason) => {
     /* ----------------------------
    SEND NOTIFICATION
 ---------------------------- */
-await sendNotification({
-  permission: "order.listing.read",
-
-  title: "Order Cancelled",
-
-  message: `Order ${order.orderId} has been cancelled by customer`,
-
-  type: "ORDER_CANCELLED",
-
-  entityId: order._id,
-  entityModel: "Order",
-
-  metadata: {
-    orderId: order.orderId,
-    customerName:
-      currentUser.firstName || currentUser.lastName
-        ? `${currentUser.firstName || ""} ${currentUser.lastName || ""}`.trim()
-        : currentUser.name || "Customer",
-
-    customerEmail: currentUser.email,
-
-    orderStatus: order.orderStatus,
-    paymentStatus: order.paymentStatus,
-
-    refundAmount: order.refundAmount || 0,
-
-    cancellationReason: order.cancellationReason,
-
-    cancelledAt,
-  },
-});
+ /* ---------- NOTIFICATION ---------- */
+  try {
+    await sendNotification({
+      sender: employee?._id,
+      permission: "sales.order.update",
+      title: "cancelled Order",
+      message: `Order ${order.orderId} has been cancelled`,
+      type: "ORDER_CANCELLED",
+      entityId: order._id,
+      entityModel: "Order",
+      metadata: {
+        orderId: order.orderId,
+        title: order.title,
+        slug: order.slug,
+        createdBy: employee?.email || null,
+      },
+    });
+  } catch (err) {
+    console.error("Notification failed on create job:", err.message);
+  }
 
     return {
       orderId: order.orderId,
@@ -958,6 +967,26 @@ export const markRefundCompletedService = async (orderId) => {
   });
 
   await order.save();
+   /* ---------- NOTIFICATION ---------- */
+    try {
+      await sendNotification({
+        sender: employee?._id,
+        permission: "sales.order.update",
+        title: "Order Refunded",
+        message: `Refund completed for order ${order.orderId}`,
+        type: "ORDER_REFUNDED",
+        entityId: order._id,
+        entityModel: "Order",
+        metadata: {
+          orderId: order.orderId,
+          title: order.title,
+          slug: order.slug,
+          createdBy: employee?.email || null,
+        },
+      });
+    } catch (err) {
+      console.error("Notification failed on create job:", err.message);
+    }
 
   return {
     orderId: order.orderId,
@@ -1063,7 +1092,7 @@ export const updateOrderStatusService = async (data, currentUser) => {
       emailHtml
     );
   } catch (emailError) {
-    // intentionally silent
+    console.log("Failed to send order status update email:", emailError.message);
   }
 
   /* ---------- AUDIT LOG ---------- */
@@ -1073,7 +1102,7 @@ export const updateOrderStatusService = async (data, currentUser) => {
     actionByEmail: employee.email,
     actionFor: updatedOrder._id,
     actionForEmail: updatedOrder.user?.email,
-    permission: "update_order_status",
+    permission: premission  || "update_order_status",
     action: "update",
     meta: {
       from: currentStatus,
@@ -1081,6 +1110,26 @@ export const updateOrderStatusService = async (data, currentUser) => {
     },
   });
 
+   /* ---------- NOTIFICATION ---------- */
+    try {
+      await sendNotification({
+        sender: employee?._id,
+        permission: premission  || "update_order_status",
+        title: "Order Status Updated",
+        message: `Order status updated to ${status} for ${updatedOrder.orderId}`,
+        type: "ORDER_STATUS_UPDATED",
+        entityId: updatedOrder._id,
+        entityModel: "Order",
+        metadata: {
+          orderId: updatedOrder.orderId,
+          title: updatedOrder.title,
+          slug: updatedOrder.slug,
+          createdBy: employee?.email || null,
+        },
+      });
+    } catch (err) {
+      console.error("Notification failed on order status update:", err.message);
+    }
   return {
     orderId: updatedOrder.orderId,
     oldStatus: currentStatus,
@@ -1239,6 +1288,24 @@ export const markRefundCompleteAdminService = async (
         err.statusCode = 400;
         throw err;
       }
+       /* ---------- NOTIFICATION ---------- */
+        try {
+          await sendNotification({
+            sender: employee?._id,
+            permission: "sales.order.update",
+            title: "Order Refund Updated",
+            message: `Order refund updated for ${order.orderId}`,
+            type: "ORDER_REFUND_UPDATED",
+            entityId: order._id,
+            entityModel: "Order",
+            metadata: {
+              orderId: order.orderId,
+              createdBy: employee?.email || null,
+            },
+          });
+        } catch (err) {
+          console.error("Notification failed on order refund update:", err.message);
+        }
 
       refundAmount = amount;
     }
@@ -1506,46 +1573,35 @@ export const salesDashboardService = async (data) => {
 
 export const createReturnRequestService = async (data) => {
   const { orderId, returnItems } = data;
-
   /* ================= FIND ORDER ================= */
   const order = await Order.findOne({ orderId }).populate("user");
-
   if (!order) {
     throw new Error("Order not found");
   }
-
   const allowedStatuses = ["delivered", "partial_returned"];
-
   if (!allowedStatuses.includes(order.orderStatus)) {
     throw new Error(
       "Only delivered or partially returned orders can be returned"
     );
   }
-
   if (!Array.isArray(returnItems) || returnItems.length === 0) {
     throw new Error("Return items are required");
   }
-
   /* ================= VALIDATE RETURN ITEMS ================= */
   const validatedItems = [];
-
   for (const item of returnItems) {
     const { productId, variantId, quantity, reason } = item;
-
     if (!productId || !variantId || !quantity || Number(quantity) <= 0) {
       throw new Error("Invalid return item data");
     }
-
     const orderItem = order.items.find(
       (o) =>
         o.productId?.toString() === productId?.toString() &&
         o.variantId?.toString() === variantId?.toString()
     );
-
     if (!orderItem) {
       throw new Error("Product not found in order");
     }
-
     const availableQuantity =
       Number(orderItem.quantity) - Number(orderItem.returnedQuantity || 0);
 
@@ -1558,6 +1614,25 @@ export const createReturnRequestService = async (data) => {
     if (orderItem.price == null || Number(orderItem.price) <= 0) {
       throw new Error(`Invalid price found in order for ${orderItem.productName}`);
     }
+
+         /* ---------- NOTIFICATION ---------- */
+        try {
+          await sendNotification({
+            sender: employee?._id,
+            permission: "sales.order.update",
+            title: "Refund order request",
+            message: `Order refund updated for ${order.orderId}`,
+            type: "ORDER_REFUND_UPDATED",
+            entityId: order._id,
+            entityModel: "Order",
+            metadata: {
+              orderId: order.orderId,
+              createdBy: employee?.email || null,
+            },
+          });
+        } catch (err) {
+          console.error("Notification failed on order refund update:", err.message);
+        }
 
     validatedItems.push({
       productId,
@@ -1585,6 +1660,7 @@ export const createReturnRequestService = async (data) => {
     console.error("Email background job failed:", err.message);
   });
 
+  
   return {
     orderId: order.orderId,
     requestId: newRequestId,
@@ -1656,65 +1732,50 @@ await sendNotification({
 
 export const updatePendingReturnRequestService = async (data) => {
   const { orderId, requestId, returnItems } = data;
-
   /* ================= FIND ORDER ================= */
   const order = await Order.findOne({ orderId });
-
   if (!order) {
     throw new Error("Order not found");
   }
-
   /* ================= FIND RETURN REQUEST ================= */
   const returnRequest = order.returnRequests.find(
     (r) => r.requestId?.toString() === requestId?.toString()
   );
-
   if (!returnRequest) {
     throw new Error("Return request not found");
   }
-
   if (returnRequest.status !== "pending") {
     throw new Error("Only pending requests can be updated");
   }
-
   if (!Array.isArray(returnItems)) {
     throw new Error("returnItems must be an array");
   }
-
   /* ================= VALIDATE ITEMS ================= */
   const validatedItems = [];
-
   for (const item of returnItems) {
     const { productId, variantId, quantity, reason } = item;
-
     if (!productId || !variantId || !quantity || Number(quantity) <= 0) {
       throw new Error("Invalid return item data");
     }
-
     const orderItem = order.items.find(
       (o) =>
         o.productId?.toString() === productId?.toString() &&
         o.variantId?.toString() === variantId?.toString()
     );
-
     if (!orderItem) {
       throw new Error("Product not found in order");
     }
-
     /* ---------- QUANTITY CHECK ---------- */
     const alreadyReturnedQty = Number(orderItem.returnedQuantity || 0);
     const maxAllowedQty = Number(orderItem.quantity);
-
     if (Number(quantity) > maxAllowedQty) {
       throw new Error(
         `Return quantity exceeds ordered quantity for ${orderItem.productName}`
       );
     }
-
     if (orderItem.price == null || Number(orderItem.price) <= 0) {
       throw new Error(`Invalid price found in order for ${orderItem.productName}`);
     }
-
     validatedItems.push({
       productId,
       variantId,
@@ -1723,7 +1784,6 @@ export const updatePendingReturnRequestService = async (data) => {
       reason: reason || null,
     });
   }
-
   /* ================= UPDATE / DELETE ================= */
   if (validatedItems.length === 0) {
     order.returnRequests = order.returnRequests.filter(
@@ -1733,21 +1793,15 @@ export const updatePendingReturnRequestService = async (data) => {
     returnRequest.items = validatedItems;
     returnRequest.updatedAt = new Date();
   }
-
   await order.save();
   /* ================= SEND NOTIFICATION ================= */
 await sendNotification({
   permission: "update_stock",
-
   title: "Return Request Updated",
-
   message: `Return request updated for order ${order.orderId}`,
-
   type: "RETURN_REQUEST_UPDATED",
-
   entityId: order._id,
   entityModel: "Order",
-
   metadata: {
     orderId: order.orderId,
     requestId,
@@ -1761,8 +1815,24 @@ await sendNotification({
     })),
   },
 });
-
-
+     /* ---------- NOTIFICATION ---------- */
+        try {
+          await sendNotification({
+            sender: employee?._id,
+            permission: "sales.order.update",
+            title: "Order Refund Updated",
+            message: `Order refund updated for ${order.orderId}`,
+            type: "ORDER_REFUND_UPDATED",
+            entityId: order._id,
+            entityModel: "Order",
+            metadata: {
+              orderId: order.orderId,
+              createdBy: employee?.email || null,
+            },
+          });
+        } catch (err) {
+          console.error("Notification failed on order refund update:", err.message);
+        }
   return {
     orderId,
     requestId,
@@ -1850,7 +1920,6 @@ export const updateReturnRequestStatusService = async (data) => {
         if (!requestedItem) {
           throw new Error("Item not found in return request");
         }
-
         if (approvedQuantity > requestedItem.quantity) {
           throw new Error("Approved quantity exceeds requested quantity");
         }
@@ -1865,19 +1934,16 @@ export const updateReturnRequestStatusService = async (data) => {
         if (!orderItem) continue;
 
         const alreadyReturned = orderItem.returnedQuantity || 0;
-
-        if (alreadyReturned + approvedQuantity > requestedItem.quantity) {
-          throw new Error("Return quantity exceeds allowed limit");
-        }
-
+        const totalOrderedQuantity = orderItem.quantity + alreadyReturned;
+       if (alreadyReturned + approvedQuantity > totalOrderedQuantity) {
+       throw new Error("Return quantity exceeds allowed limit");
+      }
         /* ---------- PRODUCT STOCK ---------- */
         const product = await Product.findOne({ productId }).session(session);
-
         if (product) {
           if (product.stockType === "PRODUCT") {
             product.productStock += approvedQuantity;
           }
-
           if (product.stockType === "VARIANT") {
             const variant = product.variants.find(
               (v) => v.variantId === variantId
@@ -1886,20 +1952,15 @@ export const updateReturnRequestStatusService = async (data) => {
               variant.variantStock += approvedQuantity;
             }
           }
-
           await product.save({ session });
         }
-
         /* ---------- ORDER UPDATE ---------- */
         orderItem.returnedQuantity =
           (orderItem.returnedQuantity || 0) + approvedQuantity;
-
         orderItem.quantity -= approvedQuantity;
         if (orderItem.quantity < 0) orderItem.quantity = 0;
-
         stockProducts.push({ productId, variantId, quantity: approvedQuantity });
       }
-
       /* ---------- ORDER STATUS ---------- */
       const remainingQuantity = order.items.reduce(
         (sum, item) => sum + item.quantity,
@@ -1916,10 +1977,27 @@ export const updateReturnRequestStatusService = async (data) => {
       } else if (returnedQuantity > 0) {
         order.orderStatus = "partial_returned";
       }
-
       if (["returned", "partial_returned"].includes(order.orderStatus)) {
         order.paymentStatus = "refund_pending";
       }
+           /* ---------- NOTIFICATION ---------- */
+        try {
+          await sendNotification({
+            sender: employee?._id,
+            permission: "sales.order.update",
+            title: "Update Order Refund Status",
+            message: `Order refund updated for ${order.orderId}`,
+            type: "ORDER_REFUND_UPDATED",
+            entityId: order._id,
+            entityModel: "Order",
+            metadata: {
+              orderId: order.orderId,
+              createdBy: employee?.email || null,
+            },
+          });
+        } catch (err) {
+          console.error("Notification failed on order refund update:", err.message);
+        }
 
       /* ---------- STOCK AUDIT ---------- */
       if (stockProducts.length > 0) {
@@ -1958,17 +2036,14 @@ export const updateReturnRequestStatusService = async (data) => {
       }],
       { session }
     );
-
     await session.commitTransaction();
     session.endSession();
-
     return {
       orderId: order.orderId,
       requestId,
       status,
       processedAt: returnRequest.processedAt,
     };
-
   } catch (error) {
     await session.abortTransaction();
     session.endSession();

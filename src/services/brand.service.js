@@ -144,7 +144,7 @@ export const createBrandService = async ({
     try {
       await sendNotification({
         sender: employee._id,
-        permission: "brand.listing.create",
+        permission: "product.brand.create",
         title: "New Brand Created",
         message: `${brand.brandName} brand has been created successfully`,
         type: "BRAND_CREATED",
@@ -280,12 +280,11 @@ export const updateBrandService = async ({
     } catch (err) {
       console.error("Audit log failed on update brand:", err.message);
     }
-
     /* ---------- NOTIFICATION ---------- */
     try {
       await sendNotification({
         sender: employee._id,
-        permission: "brand.listing.update",
+        permission: "product.brand.update",
         title: "Brand Updated",
         message: `${brand.brandName} brand updated successfully`,
         type: "BRAND_UPDATED",
@@ -301,7 +300,6 @@ export const updateBrandService = async ({
     } catch (err) {
       console.error("Notification failed on update brand:", err.message);
     }
-
     return brand;
   } catch (error) {
     /* ---------- ROLLBACK ---------- */
@@ -423,13 +421,13 @@ export const deleteBrandService = async ({ brandId, employee, permission }) => {
     try {
       await sendNotification({
         sender: employee._id,
-        permission: "brand.listing.delete",
+        permission: "product.brand.delete",
         title: "Brand Deleted",
         message: `${brand.brandName} brand deleted successfully`,
         type: "BRAND_DELETED",
         entityId: brand._id,
         entityModel: "Brand",
-        // FIX: typo matadata → metadata
+        // FIX: typo metadata → metadata
         metadata: {
           brandId: brand.brandId,
           brandName: brand.brandName,

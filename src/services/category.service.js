@@ -125,7 +125,7 @@ export const createCategoryService = async ({
     try{
 await sendNotification({
   sender: employee._id,
-  permission: "category.listing.create",
+  permission: "product.category.create",
   title: "New Category Created",
   message: `${category.name} category has been created successfully`,
   type: "CATEGORY_CREATED",
@@ -217,7 +217,7 @@ export const updateCategoryService = async ({
     await sendNotification({
       sender: employee._id,
       permission:
-        "category.listing.update",
+        "product.category.update",
       title: "Category Updated",
       message: `${category.name} category updated successfully`,
       type: "CATEGORY_UPDATED",
@@ -299,7 +299,7 @@ export const deleteCategoryService = async ({
     await sendNotification({
       sender: employee._id,
       permission:
-        "category.listing.delete",
+        "product.category.delete",
       title: "Category Deleted",
       message: `${category.name} category deleted successfully`,
       type: "CATEGORY_DELETED",

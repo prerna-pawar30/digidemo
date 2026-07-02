@@ -243,30 +243,11 @@ export const getInvoicesService = async ({ query }) => {
     filter.status = status;
   }
 
-  if (month || year) {
-    const now = new Date();
-    const targetYear = parseInt(year) || now.getFullYear();
-    const targetMonth = parseInt(month); // 1-12
-
-    if (targetMonth) {
-      // Both month and year (or just month with current year)
-      const startDate = new Date(targetYear, targetMonth - 1, 1);
-      const endDate = new Date(targetYear, targetMonth, 1);
-      filter.createdAt = { $gte: startDate, $lt: endDate };
-    } else {
-      // Only year provided
-      const startDate = new Date(targetYear, 0, 1);
-      const endDate = new Date(targetYear + 1, 0, 1);
-      filter.createdAt = { $gte: startDate, $lt: endDate };
-    }
-  }
-
   if (search) {
     filter.$or = [
       { invoiceNumber: { $regex: search, $options: "i" } },
-      { customerNo: { $regex: search, $options: "i" } },
-      { orderNumber: { $regex: search, $options: "i" } },
       { "billTo.companyName": { $regex: search, $options: "i" } },
+      { orderNumber: { $regex: search, $options: "i" } },
     ];
   }
 
@@ -276,7 +257,6 @@ export const getInvoicesService = async ({ query }) => {
       .skip(skip)
       .limit(limit)
       .lean(),
-
     Invoice.countDocuments(filter),
   ]);
 

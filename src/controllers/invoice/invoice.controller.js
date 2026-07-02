@@ -298,22 +298,22 @@ export const getInvoiceById = async (req, res) => {
   }
 };
 
-/**
- * @function getInvoices
- *
- * @description
- * Fetch all invoices with pagination and filters.
- */
-export const getInvoices = async (req, res) => {
-  try {
-    const result = await getInvoicesService({
-      query: req.query,
-    });
-    return sendSuccess(res, result, 200, "Invoices fetched successfully");
-  } catch (error) {
-    return handleError(res, error);
-  }
-};
+// /**
+//  * @function getInvoices
+//  *
+//  * @description
+//  * Fetch all invoices with pagination and filters.
+//  */
+// export const getInvoices = async (req, res) => {
+//   try {
+//     const result = await getInvoicesService({
+//       query: req.query,
+//     });
+//     return sendSuccess(res, result, 200, "Invoices fetched successfully");
+//   } catch (error) {
+//     return handleError(res, error);
+//   }
+// };
 
 export const getInvoiceCustomers = async (req, res) => {
   try {
@@ -447,6 +447,55 @@ export const getInvoicesByCustomerId = async (req, res) => {
       "Customer invoices fetched successfully"
     );
 
+  } catch (error) {
+    return handleError(res, error);
+  }
+};
+
+
+/* =========================================================
+   GET ALL INVOICES  (with month/year/status/search filter)
+========================================================= */
+export const getInvoices = async (req, res) => {
+  try {
+    const { month, year } = req.query;
+
+    /* ---------- MONTH VALIDATION ---------- */
+    if (month) {
+      const m = parseInt(month);
+
+      if (isNaN(m) || m < 1 || m > 12) {
+        return sendError(res, {
+          message: "month must be a number between 1 and 12",
+          statusCode: 400,
+          errorCode: "INVALID_MONTH",
+        });
+      }
+    }
+
+    /* ---------- YEAR VALIDATION ---------- */
+    if (year) {
+      const y = parseInt(year);
+
+      if (isNaN(y) || y < 2000 || y > 2100) {
+        return sendError(res, {
+          message: "year must be a valid 4-digit year",
+          statusCode: 400,
+          errorCode: "INVALID_YEAR",
+        });
+      }
+    }
+
+    const data = await getInvoicesService({ query: req.query });
+
+    return sendSuccess(
+      res,
+      data,
+      200,
+      month
+        ? `Invoices for month ${month}${year ? ` / ${year}` : ""} fetched successfully`
+        : "Invoices fetched successfully"
+    );
   } catch (error) {
     return handleError(res, error);
   }

@@ -54,7 +54,6 @@ export const createJobService = async ({ data, employee }) => {
   while (await Job.findOne({ slug })) {
     slug = `${baseSlug}-${counter++}`;
   }
-
   const job = await Job.create({
     ...data,
     jobId: uuidv6(),
@@ -72,10 +71,8 @@ export const createJobService = async ({ data, employee }) => {
       email: employee?.email || null,
     },
   });
-
   /* ---------- CLEAR CACHE ---------- */
   await clearJobCache();
-
   /* ---------- AUDIT ---------- */
   try {
     await PermissionAudit.create({
@@ -85,18 +82,18 @@ export const createJobService = async ({ data, employee }) => {
       actionFor: job._id,
       actionForEmail: null,
       action: job.title,
-      permission: "career.job.create",
+      permission: "hr.career.create",
       actionType: "Create",
     });
+    
   } catch (err) {
     console.error("Audit log failed on create job:", err.message);
   }
-
   /* ---------- NOTIFICATION ---------- */
   try {
     await sendNotification({
       sender: employee?._id,
-      permission: "career.job.create",
+      permission: "hr.career.create",
       title: "Job Created",
       message: `New job opening added for ${job.title}`,
       type: "JOB_CREATED",
@@ -112,7 +109,6 @@ export const createJobService = async ({ data, employee }) => {
   } catch (err) {
     console.error("Notification failed on create job:", err.message);
   }
-
   return job;
 };
 
@@ -161,7 +157,7 @@ export const updateJobService = async ({ jobId, data, employee }) => {
       actionFor: job._id,
       actionForEmail: null,
       action: job.title,
-      permission: "career.job.update",
+      permission: "hr.career.update",
       actionType: "Update",
     });
   } catch (err) {
@@ -172,7 +168,7 @@ export const updateJobService = async ({ jobId, data, employee }) => {
   try {
     await sendNotification({
       sender: employee?._id,
-      permission: "career.job..update",
+      permission: "hr.career.update",
       title: "Job Updated",
       message: `Job "${job.title}" has been updated`,
       type: "JOB_UPDATED",
@@ -370,7 +366,7 @@ export const deleteJobService = async ({ jobId, employee }) => {
   try {
     await sendNotification({
       sender: employee?._id || null,
-      permission: "career.job..delete",
+      permission: "hr.career.delete",
       title: "Job Deleted",
       message: `Job "${job.title}" has been deleted`,
       type: "JOB_DELETED",
