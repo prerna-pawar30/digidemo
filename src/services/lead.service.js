@@ -417,56 +417,71 @@ export const updateWhatsapp = async (id, whatsappData = {}) => {
 };
 
 /* ─── LOG FOLLOW-UP TOUCH (Strict validation for max array limits) ──────── */
-export const logFollowUp = async (
-  id,
-  stageType,
-  email,
-  payload
-) => {
+/* ─── LOG FOLLOW-UP TOUCH (auto-rolls into next round; first pre-sale
+     touch also auto-promotes lead from "inquiry" → "followup") ──────── */
+export const logFollowUp = async (id, stageType, email, payload) => {
   if (!["pre-sale", "post-sale"].includes(stageType)) {
     throw new Error("Invalid stage type");
+  }
+  if (!["Picked", "Not Picked"].includes(payload.callStatus)) {
+    throw new Error("callStatus must be 'Picked' or 'Not Picked'");
+  }
+  if (!payload.nextCallDate) {
+    throw new Error("nextCallDate is required");
   }
 
   const employee = await Employee.findOne(
     { email },
     { firstName: 1, lastName: 1, _id: 1 }
   ).lean();
+  if (!employee) throw new Error("Employee not found");
 
-  if (!employee) {
-    throw new Error("Employee not found");
+  const lead = await DentalLead.findOne({ _id: id, ...baseQuery });
+  if (!lead) throw new Error("Lead not found");
+
+  // post-sale followups only make sense once the lead is already a client
+  if (stageType === "post-sale" && lead.stage !== "client") {
+    throw new Error("Post-sale follow-ups can only be logged for clients");
   }
 
-  const lead = await DentalLead.findOne({
-    _id: id,
-    ...baseQuery,
-  });
+  const arr = stageType === "pre-sale" ? lead.preSaleFollowups : lead.postSaleFollowups;
 
-  if (!lead) {
-    throw new Error("Lead not found");
-  }
-
-  const arr =
-    stageType === "pre-sale"
-      ? lead.preSaleFollowups
-      : lead.postSaleFollowups;
-
-  if (arr.length >= 3) {
-    throw new Error(
-      `All 3 ${stageType} touch slots have already been exhausted`
-    );
+  // Max 3 touches per round (month). Once the 3rd touch of a round is
+  // logged, the very next log automatically opens the next round —
+  // no error, no manual reset. Agent just picks whatever nextCallDate
+  // they want (e.g. next month), and it becomes round+1, touch 1.
+  const last = arr[arr.length - 1];
+  let round = 1;
+  let touchNumber = 1;
+  if (last) {
+    if (last.touchNumber < 3) {
+      round = last.round;
+      touchNumber = last.touchNumber + 1;
+    } else {
+      round = last.round + 1;
+      touchNumber = 1;
+    }
   }
 
   const entry = {
     agent: `${employee.firstName || ""} ${employee.lastName || ""}`.trim(),
     employeeId: employee._id,
-    notes: payload.notes,
-    hurdle: payload.hurdle || "None noted",
+    callStatus: payload.callStatus,
+    reason: payload.reason || "",
     nextCallDate: new Date(payload.nextCallDate),
-    touchNumber: arr.length + 1,
+    round,
+    touchNumber,
     loggedAt: new Date(),
   };
 
   arr.push(entry);
+
+  // First-ever pre-sale touch auto-promotes stage: inquiry -> followup.
+  // (Manual "Move to Follow-up" button still works separately if the
+  // agent wants to move a lead over with a reason before any call.)
+  if (stageType === "pre-sale" && lead.stage === "inquiry") {
+    lead.stage = "followup";
+  }
 
   return await lead.save();
 };
