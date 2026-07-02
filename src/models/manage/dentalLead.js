@@ -112,7 +112,6 @@ const followUpSchema = new mongoose.Schema(
     /* Did the customer pick up the call? */
     callStatus: {
       type: String,
-      enum: ["Picked", "Not Picked"],
       required: true,
     },
     /* Optional extra detail — why not picked, what was discussed, etc. */
