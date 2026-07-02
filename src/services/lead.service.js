@@ -416,9 +416,9 @@ export const updateWhatsapp = async (id, whatsappData = {}) => {
   return lead.save();
 };
 
-/* ─── LOG FOLLOW-UP TOUCH (Strict validation for max array limits) ──────── */
 /* ─── LOG FOLLOW-UP TOUCH (auto-rolls into next round; first pre-sale
-     touch also auto-promotes lead from "inquiry" → "followup") ──────── */
+     touch also auto-promotes lead from "inquiry" → "followup"; also
+     bumps callCount since a logged touch means a call was made) ──────── */
 export const logFollowUp = async (id, stageType, email, payload) => {
   if (!["pre-sale", "post-sale"].includes(stageType)) {
     throw new Error("Invalid stage type");
@@ -439,17 +439,12 @@ export const logFollowUp = async (id, stageType, email, payload) => {
   const lead = await DentalLead.findOne({ _id: id, ...baseQuery });
   if (!lead) throw new Error("Lead not found");
 
-  // post-sale followups only make sense once the lead is already a client
   if (stageType === "post-sale" && lead.stage !== "client") {
     throw new Error("Post-sale follow-ups can only be logged for clients");
   }
 
   const arr = stageType === "pre-sale" ? lead.preSaleFollowups : lead.postSaleFollowups;
 
-  // Max 3 touches per round (month). Once the 3rd touch of a round is
-  // logged, the very next log automatically opens the next round —
-  // no error, no manual reset. Agent just picks whatever nextCallDate
-  // they want (e.g. next month), and it becomes round+1, touch 1.
   const last = arr[arr.length - 1];
   let round = 1;
   let touchNumber = 1;
@@ -476,9 +471,9 @@ export const logFollowUp = async (id, stageType, email, payload) => {
 
   arr.push(entry);
 
-  // First-ever pre-sale touch auto-promotes stage: inquiry -> followup.
-  // (Manual "Move to Follow-up" button still works separately if the
-  // agent wants to move a lead over with a reason before any call.)
+  // A logged follow-up touch IS a call — bump the counter automatically.
+  lead.callCount = (lead.callCount || 0) + 1;
+
   if (stageType === "pre-sale" && lead.stage === "inquiry") {
     lead.stage = "followup";
   }
