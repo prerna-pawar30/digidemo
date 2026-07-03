@@ -243,8 +243,7 @@ export const getBlogBySlugService = async ({ slug }) => {
 };
 
 /* =========================================================
-   UPDATE BLOG
-========================================================= */
+   UPDATE BLog=================================================== */
 export const updateBlogService = async ({ blogId, data,featuredImage, employee }) => {
   let featuredUpload = null;
   try{
