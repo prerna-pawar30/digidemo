@@ -1,6 +1,21 @@
 /**
  * Send Error Response
  */
+
+export const asyncHandler = (handler, fallbackStatus = 500) => async (req, res) => {
+  try {
+    await handler(req, res);
+  } catch (e) {
+    sendError(res, e, fallbackStatus);
+  }
+};
+
+
+
+export const ok = (res, data, status = 200) =>
+  res.status(status).json({ success: true, ...data });
+ 
+
 export const sendError = (
   res,
   {

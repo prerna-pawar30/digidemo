@@ -424,9 +424,6 @@ export const logFollowUp = async (id, stageType, email, payload) => {
   if (!["pre-sale", "post-sale"].includes(stageType)) {
     throw new Error("Invalid stage type");
   }
-  if (!["Picked", "Not Picked"].includes(payload.callStatus)) {
-    throw new Error("callStatus must be 'Picked' or 'Not Picked'");
-  }
   if (!payload.nextCallDate) {
     throw new Error("nextCallDate is required");
   }

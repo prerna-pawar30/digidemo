@@ -231,53 +231,6 @@ export const getInvoiceByIdService = async ({ invoiceId }) => {
   return invoice;
 };
 
-// export const getInvoicesService = async ({ query }) => {
-//   const { page, limit, skip } = getPagination(query);
-//   const { search, status } = query;
-
-//   const filter = {
-//     isDeleted: false,
-//   };
-
-//   if (status) {
-//     filter.status = status;
-//   }
-
-//   if (search) {
-//     filter.$or = [
-//       { invoiceNumber: { $regex: search, $options: "i" } },
-//       { customerNo: { $regex: search, $options: "i" } },
-//       { orderNumber: { $regex: search, $options: "i" } },
-//       { "billTo.companyName": { $regex: search, $options: "i" } },
-//     ];
-//   }
-
-//   const [invoices, totalItems] = await Promise.all([
-//     Invoice.find(filter)
-//       .sort({ createdAt: -1 })
-//       .skip(skip)
-//       .limit(limit)
-//       .lean(),
-
-//     Invoice.countDocuments(filter),
-//   ]);
-
-//   const totalPages = Math.ceil(totalItems / limit);
-
-//   return {
-//     invoices,
-//     pagination: {
-//       totalItems,
-//       totalPages,
-//       currentPage: page,
-//       nextPage: page < totalPages ? page + 1 : null,
-//       prevPage: page > 1 ? page - 1 : null,
-//       limit,
-//     },
-//   };
-// };
-
-
 export const getInvoicesService = async ({ query }) => {
   const { page, limit, skip } = getPagination(query);
   const { search, status, month, year } = query;
@@ -290,26 +243,32 @@ export const getInvoicesService = async ({ query }) => {
     filter.status = status;
   }
 
-  /* ---------- MONTH FILTER ---------- */
-  if (month) {
-    const m = parseInt(month) - 1; // JS months are 0-indexed (May = 4)
-    const y = parseInt(year) || new Date().getFullYear();
-
-    const startDate = new Date(y, m, 1);           // May 1
-    const endDate   = new Date(y, m + 1, 0, 23, 59, 59, 999); // May 31
-
-    filter.invoiceDate = {
-      $gte: startDate,
-      $lte: endDate,
-    };
-  }
-
   if (search) {
     filter.$or = [
       { invoiceNumber: { $regex: search, $options: "i" } },
       { "billTo.companyName": { $regex: search, $options: "i" } },
       { orderNumber: { $regex: search, $options: "i" } },
     ];
+  }
+
+  // ---- MONTH / YEAR FILTER ----
+  if (month || year) {
+    const now = new Date();
+    const y = year ? parseInt(year) : now.getFullYear();
+
+    let startDate, endDate;
+
+    if (month) {
+      const m = parseInt(month) - 1; // JS months are 0-indexed
+      startDate = new Date(Date.UTC(y, m, 1, 0, 0, 0));
+      endDate = new Date(Date.UTC(y, m + 1, 1, 0, 0, 0)); // first day of next month
+    } else {
+      // only year given
+      startDate = new Date(Date.UTC(y, 0, 1, 0, 0, 0));
+      endDate = new Date(Date.UTC(y + 1, 0, 1, 0, 0, 0));
+    }
+
+    filter.invoiceDate = { $gte: startDate, $lt: endDate };
   }
 
   const [invoices, totalItems] = await Promise.all([
