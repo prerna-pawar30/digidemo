@@ -100,56 +100,173 @@
 
 import mongoose from "mongoose";
 
-/* ── Follow-up log entry — max 3 touches PER ROUND, then auto-rolls to next round ── */
-const followUpSchema = new mongoose.Schema(
+/* ============================================================
+   REMARK SCHEMA (Every call/interaction log)
+============================================================ */
+const remarkSchema = new mongoose.Schema(
   {
-    agent:      { type: String, required: true, trim: true },
+    agent: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
     employeeId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Employee",
       required: true,
     },
-    /* Did the customer pick up the call? */
+
     callStatus: {
       type: String,
       enum: ["Picked", "Not Picked"],
       required: true,
     },
-    /* Optional extra detail — why not picked, what was discussed, etc. */
-    reason:       { type: String, trim: true, default: "" },
-    nextCallDate: { type: Date, required: true },
-    round:        { type: Number, required: true, default: 1 }, // month cycle
-    touchNumber:  { type: Number, required: true, min: 1, max: 3 }, // 1-3 within round
-    loggedAt:     { type: Date, default: Date.now },
+
+    reason: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
+    loggedAt: {
+      type: Date,
+      default: Date.now,
+    },
   },
   { _id: true }
 );
 
-/* ── WhatsApp contact sub-schema ── */
+/* ============================================================
+   FOLLOW-UP SCHEMA (Scheduled Follow-up)
+============================================================ */
+const followupSchema = new mongoose.Schema(
+  {
+    nextCallDate: {
+      type: Date,
+      required: true,
+    },
+
+    round: {
+      type: Number,
+      default: 1,
+      min: 1,
+    },
+
+    touchNumber: {
+      type: Number,
+      default: 1,
+      min: 1,
+      max: 3,
+    },
+
+    status: {
+      type: String,
+      enum: ["Pending", "Completed", "Missed", "Cancelled"],
+      default: "Pending",
+    },
+
+    completedAt: {
+      type: Date,
+      default: null,
+    },
+
+    remarks: {
+      type: [remarkSchema],
+      default: [],
+    },
+  },
+  { _id: true }
+);
+
+/* ============================================================
+   WhatsApp Schema
+============================================================ */
 const whatsappSchema = new mongoose.Schema(
   {
-    sent:    { type: Boolean, default: false },
-    replied: { type: Boolean, default: false },
+    sent: {
+      type: Boolean,
+      default: false,
+    },
+
+    replied: {
+      type: Boolean,
+      default: false,
+    },
+
     noReply: {
-      reason:  { type: String, trim: true, default: "" },
-      fixDate: { type: Date, default: null },
+      reason: {
+        type: String,
+        trim: true,
+        default: "",
+      },
+
+      fixDate: {
+        type: Date,
+        default: null,
+      },
     },
   },
   { _id: false }
 );
 
-/* ── Main DentalLead schema ── */
+/* ============================================================
+   Dental Lead Schema
+============================================================ */
 const dentalLeadSchema = new mongoose.Schema(
   {
-    doctorName: { type: String, trim: true },
-    clinicName: { type: String, trim: true, default: "" },
-    email:      { type: String, lowercase: true, trim: true, default: "" },
-    contact:    { type: String, trim: true },
-    city:       { type: String, trim: true, default: "" },
-    state:      { type: String, trim: true, default: "" },
-    address:    { type: String, trim: true, default: "" },
-    enquiry:    { type: String, trim: true, default: "" },
-    remarks:    { type: String, trim: true, default: "" },
+    doctorName: {
+      type: String,
+      trim: true,
+    },
+
+    clinicName: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
+    email: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      default: "",
+    },
+
+    contact: {
+      type: String,
+      trim: true,
+    },
+
+    city: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
+    state: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
+    address: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
+    enquiry: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
+    remarks: {
+      type: String,
+      trim: true,
+      default: "",
+    },
 
     stage: {
       type: String,
@@ -158,50 +275,118 @@ const dentalLeadSchema = new mongoose.Schema(
       index: true,
     },
 
-    clientId: { type: String, trim: true, default: null, sparse: true },
+    clientId: {
+      type: String,
+      trim: true,
+      default: null,
+      sparse: true,
+    },
 
-    /* No length cap here anymore — rounds keep rolling monthly until converted */
-    preSaleFollowups:  { type: [followUpSchema], default: [] },
-    postSaleFollowups: { type: [followUpSchema], default: [] },
+    /* ------------------ Follow-ups ------------------ */
 
-    whatsapp:   { type: whatsappSchema, default: () => ({}) },
-    callCount:  { type: Number, default: 0, min: 0 },
-    moveReason: { type: String, trim: true, default: "" },
+    preSaleFollowups: {
+      type: [followupSchema],
+      default: [],
+    },
 
-    flagReason: { type: String, trim: true, default: "" },
-    flaggedAt:  { type: Date, default: null },
-    flaggedBy:  { type: String, trim: true, default: "" },
+    postSaleFollowups: {
+      type: [followupSchema],
+      default: [],
+    },
 
-    contactBy: { type: String, trim: true, default: "" },
+    /* ------------------ WhatsApp ------------------ */
+
+    whatsapp: {
+      type: whatsappSchema,
+      default: () => ({}),
+    },
+
+    callCount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    moveReason: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
+    flagReason: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
+    flaggedAt: {
+      type: Date,
+      default: null,
+    },
+
+    flaggedBy: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
+    contactBy: {
+      type: String,
+      trim: true,
+      default: "",
+    },
 
     source: {
       type: String,
       enum: ["manual", "excel"],
       default: "manual",
     },
+
     invoiceId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Invoice",
     },
 
-    nextFollowUpDate: { type: Date, default: null, index: 1 },
+    nextFollowUpDate: {
+      type: Date,
+      default: null,
+      index: true,
+    },
 
-    isDeleted: { type: Boolean, default: false },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+    },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+  }
 );
 
-dentalLeadSchema.pre("save", function () {
-  const allDates = [...this.preSaleFollowups, ...this.postSaleFollowups]
-    .map((f) => f?.nextCallDate)
-    .filter(Boolean);
+/* ============================================================
+   Auto-update nextFollowUpDate
+============================================================ */
 
-  if (allDates.length > 0) {
-    allDates.sort((a, b) => new Date(a) - new Date(b));
+dentalLeadSchema.pre("save", function (next) {
+  const allDates = [
+    ...this.preSaleFollowups,
+    ...this.postSaleFollowups,
+  ]
+    .filter(
+      (f) =>
+        f.status === "Pending" &&
+        f.nextCallDate
+    )
+    .map((f) => new Date(f.nextCallDate));
+
+  if (allDates.length) {
+    allDates.sort((a, b) => a - b);
     this.nextFollowUpDate = allDates[0];
   } else {
     this.nextFollowUpDate = null;
   }
+
+  next();
 });
 
 export default mongoose.model("DentalLead", dentalLeadSchema);
