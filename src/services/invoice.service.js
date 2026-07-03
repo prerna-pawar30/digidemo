@@ -251,6 +251,26 @@ export const getInvoicesService = async ({ query }) => {
     ];
   }
 
+  // ---- MONTH / YEAR FILTER ----
+  if (month || year) {
+    const now = new Date();
+    const y = year ? parseInt(year) : now.getFullYear();
+
+    let startDate, endDate;
+
+    if (month) {
+      const m = parseInt(month) - 1; // JS months are 0-indexed
+      startDate = new Date(Date.UTC(y, m, 1, 0, 0, 0));
+      endDate = new Date(Date.UTC(y, m + 1, 1, 0, 0, 0)); // first day of next month
+    } else {
+      // only year given
+      startDate = new Date(Date.UTC(y, 0, 1, 0, 0, 0));
+      endDate = new Date(Date.UTC(y + 1, 0, 1, 0, 0, 0));
+    }
+
+    filter.invoiceDate = { $gte: startDate, $lt: endDate };
+  }
+
   const [invoices, totalItems] = await Promise.all([
     Invoice.find(filter)
       .sort({ createdAt: -1 })
