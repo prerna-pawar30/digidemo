@@ -24,6 +24,7 @@ import zohoRoutes from "./src/routes/zoho/zoho.routes.js"
 import stockAudit from "./src/routes/ecommarace/stockauditlog.routes.js"
 import permissionRoutes from "./src/routes/manage/permission.routes.js"
 import orderRoutes from "./src/routes/ecommarace/order.routes.js"
+import manualOrderRoutes from "./src/routes/ecommarace/manualOrder.routes.js"
 import oauthRouter from "./src/routes/zoho/auth.routes.js"
 import librarylogRoutes from "./src/routes/ecommarace/librarylog.routes.js"
 import awsUploadRoutes from "./src/routes/ecommarace/aws.routes.js"
@@ -168,6 +169,7 @@ app.use("/api/v1/product", productRoutes);
 app.use("/api/v1/stock-audit",stockAudit)
 app.use("/api/v1/permission", permissionRoutes);
 app.use("/api/v1/order", orderRoutes);
+app.use("/api/v1/manual-order", manualOrderRoutes);
 app.use("/api/v1/librarylog", librarylogRoutes);
 app.use("/api/v1/aws", awsUploadRoutes);
 app.use("/api/v1/attendance", Attendance);
